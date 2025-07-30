@@ -1,0 +1,222 @@
+const express = require('express');
+const router = express.Router();
+const { auth, verifyMentor, verifyStudent } = require('../middleware/auth');
+const Conversation = require('../models/Conversation');
+const Message = require('../models/Message');
+
+// Get all conversations for a user (mentor or student)
+router.get('/conversations', auth, async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const userRole = req.user.role;
+
+    let conversations;
+    if (userRole === 'mentor') {
+      conversations = await Conversation.find({ mentorId: userId })
+        .populate('studentId', 'firstName lastName email')
+        .populate('lastMessage')
+        .sort({ updatedAt: -1 });
+    } else {
+      conversations = await Conversation.find({ studentId: userId })
+        .populate('mentorId', 'firstName lastName email expertise')
+        .populate('lastMessage')
+        .sort({ updatedAt: -1 });
+    }
+
+    res.json(conversations);
+  } catch (error) {
+    console.error('Error fetching conversations:', error);
+    res.status(500).json({ message: 'Error fetching conversations' });
+  }
+});
+
+// Get messages for a specific conversation
+router.get('/conversations/:conversationId/messages', auth, async (req, res) => {
+  try {
+    const { conversationId } = req.params;
+    const userId = req.user._id;
+
+    // Verify user has access to this conversation
+    const conversation = await Conversation.findById(conversationId);
+    if (!conversation) {
+      return res.status(404).json({ message: 'Conversation not found' });
+    }
+
+    if (conversation.studentId.toString() !== userId.toString() && 
+        conversation.mentorId.toString() !== userId.toString()) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    const messages = await Message.find({ conversationId })
+      .populate('senderId', 'firstName lastName')
+      .sort({ createdAt: 1 });
+
+    res.json(messages);
+  } catch (error) {
+    console.error('Error fetching messages:', error);
+    res.status(500).json({ message: 'Error fetching messages' });
+  }
+});
+
+// Send a message
+router.post('/conversations/:conversationId/messages', auth, async (req, res) => {
+  try {
+    const { conversationId } = req.params;
+    const { content } = req.body;
+    const senderId = req.user._id;
+
+    if (!content || content.trim() === '') {
+      return res.status(400).json({ message: 'Message content is required' });
+    }
+
+    // Verify user has access to this conversation
+    const conversation = await Conversation.findById(conversationId);
+    if (!conversation) {
+      return res.status(404).json({ message: 'Conversation not found' });
+    }
+
+    if (conversation.studentId.toString() !== senderId.toString() && 
+        conversation.mentorId.toString() !== senderId.toString()) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    // Create new message
+    const message = new Message({
+      conversationId,
+      senderId,
+      content: content.trim(),
+      messageType: 'text'
+    });
+
+    await message.save();
+
+    // Update conversation's last message and timestamp
+    conversation.lastMessage = message._id;
+    conversation.updatedAt = new Date();
+    await conversation.save();
+
+    // Populate sender info for response
+    await message.populate('senderId', 'firstName lastName');
+
+    res.status(201).json(message);
+  } catch (error) {
+    console.error('Error sending message:', error);
+    res.status(500).json({ message: 'Error sending message' });
+  }
+});
+
+// Create a new conversation (student to mentor)
+router.post('/conversations', auth, verifyStudent, async (req, res) => {
+  try {
+    const { mentorId, initialMessage } = req.body;
+    const studentId = req.user._id;
+
+    if (!mentorId) {
+      return res.status(400).json({ message: 'Mentor ID is required' });
+    }
+
+    // Check if conversation already exists
+    let conversation = await Conversation.findOne({
+      studentId,
+      mentorId
+    });
+
+    if (!conversation) {
+      conversation = new Conversation({
+        studentId,
+        mentorId,
+        status: 'active'
+      });
+      await conversation.save();
+    }
+
+    // Send initial message if provided
+    if (initialMessage && initialMessage.trim() !== '') {
+      const message = new Message({
+        conversationId: conversation._id,
+        senderId: studentId,
+        content: initialMessage.trim(),
+        messageType: 'text'
+      });
+
+      await message.save();
+      conversation.lastMessage = message._id;
+      conversation.updatedAt = new Date();
+      await conversation.save();
+    }
+
+    // Populate conversation with user details
+    await conversation.populate('mentorId', 'firstName lastName expertise');
+    await conversation.populate('studentId', 'firstName lastName');
+    await conversation.populate('lastMessage');
+
+    res.status(201).json(conversation);
+  } catch (error) {
+    console.error('Error creating conversation:', error);
+    res.status(500).json({ message: 'Error creating conversation' });
+  }
+});
+
+// Mark messages as read
+router.put('/conversations/:conversationId/read', auth, async (req, res) => {
+  try {
+    const { conversationId } = req.params;
+    const userId = req.user._id;
+
+    // Verify user has access to this conversation
+    const conversation = await Conversation.findById(conversationId);
+    if (!conversation) {
+      return res.status(404).json({ message: 'Conversation not found' });
+    }
+
+    if (conversation.studentId.toString() !== userId.toString() && 
+        conversation.mentorId.toString() !== userId.toString()) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    // Mark all unread messages as read
+    await Message.updateMany(
+      {
+        conversationId,
+        senderId: { $ne: userId },
+        read: false
+      },
+      { read: true }
+    );
+
+    res.json({ message: 'Messages marked as read' });
+  } catch (error) {
+    console.error('Error marking messages as read:', error);
+    res.status(500).json({ message: 'Error marking messages as read' });
+  }
+});
+
+// Get unread message count for a user
+router.get('/unread-count', auth, async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const userRole = req.user.role;
+
+    let conversations;
+    if (userRole === 'mentor') {
+      conversations = await Conversation.find({ mentorId: userId });
+    } else {
+      conversations = await Conversation.find({ studentId: userId });
+    }
+
+    const conversationIds = conversations.map(conv => conv._id);
+    
+    const unreadCount = await Message.countDocuments({
+      conversationId: { $in: conversationIds },
+      senderId: { $ne: userId },
+      read: false
+    });
+
+    res.json({ unreadCount });
+  } catch (error) {
+    console.error('Error getting unread count:', error);
+    res.status(500).json({ message: 'Error getting unread count' });
+  }
+});
+
+module.exports = router; 
