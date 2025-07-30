@@ -29,6 +29,10 @@ import {
   Alert,
   CircularProgress,
   Fab,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
 } from '@mui/material';
 import {
   School,
@@ -79,6 +83,8 @@ const StudentDashboard = () => {
     description: '',
     date: '',
     time: '',
+    duration: 60,
+    sessionType: 'video_call'
   });
 
   useEffect(() => {
@@ -100,6 +106,8 @@ const StudentDashboard = () => {
       const mentorsData = Array.isArray(mentorsRes.data) 
         ? mentorsRes.data 
         : (mentorsRes.data.mentors || []);
+      
+      console.log('Mentors data structure:', mentorsData.slice(0, 1)); // Debug first mentor
       setMentors(mentorsData.slice(0, 6)); // Show top 6 mentors
       // Handle sessions data - it could be an array or object with sessions property
       const sessionsData = Array.isArray(sessionsRes.data) 
@@ -121,16 +129,46 @@ const StudentDashboard = () => {
 
   const handleBookSession = async () => {
     try {
-      await axios.post('/api/students/sessions', {
+      if (!bookingData.title || !bookingData.date || !bookingData.time) {
+        alert('Please fill in all required fields');
+        return;
+      }
+
+      const sessionData = {
         mentorId: selectedMentor._id,
-        ...bookingData,
-      });
+        title: bookingData.title,
+        description: bookingData.description || 'Session booking',
+        scheduledDate: new Date(`${bookingData.date}T${bookingData.time}:00.000Z`).toISOString(),
+        duration: bookingData.duration,
+        sessionType: bookingData.sessionType
+      };
+
+      console.log('Sending session data:', sessionData);
+      await axios.post('/api/students/sessions', sessionData);
+      
+      // Reset form and close dialog
       setBookingDialog(false);
       setSelectedMentor(null);
-      setBookingData({ title: '', description: '', date: '', time: '' });
-      fetchDashboardData(); // Refresh data
+      setBookingData({ title: '', description: '', date: '', time: '', duration: 60, sessionType: 'video_call' });
+      
+      // Show success message
+      alert('Session booked successfully! The mentor will be notified.');
+      
+      // Refresh dashboard data
+      fetchDashboardData();
     } catch (error) {
       console.error('Error booking session:', error);
+      console.error('Error response:', error.response?.data);
+      
+      let errorMessage = 'Failed to book session. Please try again.';
+      
+      if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.response?.data?.errors) {
+        errorMessage = error.response.data.errors.map(err => err.msg).join(', ');
+      }
+      
+      alert(errorMessage);
     }
   };
 
@@ -231,46 +269,58 @@ const StudentDashboard = () => {
               </Button>
             </Box>
             <List>
-              {mentors.map((mentor, index) => (
-                <React.Fragment key={mentor._id}>
-                  <ListItem alignItems="flex-start">
-                    <ListItemAvatar>
-                      <Avatar src={mentor.profileImage}>
-                        {mentor.firstName?.charAt(0)}
-                      </Avatar>
-                    </ListItemAvatar>
-                    <ListItemText
-                      primary={
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <Typography variant="subtitle1">
-                            {mentor.firstName} {mentor.lastName}
-                          </Typography>
-                          <Rating value={mentor.averageRating || 0} size="small" readOnly />
-                        </Box>
-                      }
-                      secondary={
-                        <Box>
-                          <Typography variant="body2" color="text.secondary">
-                            {mentor.designation} at {mentor.organization}
-                          </Typography>
-                          <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
-                            <Chip label={mentor.expertise} size="small" color="primary" />
-                            <Chip label={`${mentor.experience} years`} size="small" />
+              {mentors.length > 0 ? (
+                mentors.map((mentor, index) => (
+                  <React.Fragment key={mentor._id}>
+                    <ListItem alignItems="flex-start">
+                      <ListItemAvatar>
+                        <Avatar src={mentor.userId?.profilePicture}>
+                          {mentor.userId?.firstName?.charAt(0)}
+                        </Avatar>
+                      </ListItemAvatar>
+                      <ListItemText
+                        primary={
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Typography variant="subtitle1">
+                              {mentor.userId?.firstName} {mentor.userId?.lastName}
+                            </Typography>
+                            <Rating value={mentor.ratings?.average || 0} size="small" readOnly />
                           </Box>
-                        </Box>
-                      }
-                    />
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      onClick={() => setSelectedMentor(mentor)}
-                    >
-                      Book Session
-                    </Button>
-                  </ListItem>
-                  {index < mentors.length - 1 && <Divider />}
-                </React.Fragment>
-              ))}
+                        }
+                        secondary={
+                          <Box>
+                            <Typography variant="body2" color="text.secondary">
+                              {mentor.professionalInfo?.designation || 'Professional'} at {mentor.professionalInfo?.organization || 'Organization'}
+                            </Typography>
+                            <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
+                              <Chip label={mentor.expertise?.[0]?.field || 'General'} size="small" color="primary" />
+                              <Chip label={`${mentor.professionalInfo?.experience || 0} years`} size="small" />
+                            </Box>
+                          </Box>
+                        }
+                      />
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        onClick={() => {
+                          setSelectedMentor(mentor);
+                          setBookingDialog(true);
+                        }}
+                      >
+                        Book Session
+                      </Button>
+                    </ListItem>
+                    {index < mentors.length - 1 && <Divider />}
+                  </React.Fragment>
+                ))
+              ) : (
+                <ListItem>
+                  <ListItemText
+                    primary="No mentors available"
+                    secondary="Check back later for available mentors."
+                  />
+                </ListItem>
+              )}
             </List>
           </Paper>
         </Grid>
@@ -491,7 +541,7 @@ const StudentDashboard = () => {
 
       {/* Booking Dialog */}
       <Dialog open={bookingDialog} onClose={() => setBookingDialog(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Book Session with {selectedMentor?.firstName} {selectedMentor?.lastName}</DialogTitle>
+        <DialogTitle>Book Session with {selectedMentor?.userId?.firstName} {selectedMentor?.userId?.lastName}</DialogTitle>
         <DialogContent>
           <TextField
             fullWidth
@@ -517,6 +567,7 @@ const StudentDashboard = () => {
             onChange={(e) => setBookingData({ ...bookingData, date: e.target.value })}
             margin="normal"
             InputLabelProps={{ shrink: true }}
+            inputProps={{ min: new Date().toISOString().split('T')[0] }}
           />
           <TextField
             fullWidth
@@ -527,6 +578,32 @@ const StudentDashboard = () => {
             margin="normal"
             InputLabelProps={{ shrink: true }}
           />
+          <FormControl fullWidth margin="normal">
+            <InputLabel>Duration</InputLabel>
+            <Select
+              value={bookingData.duration}
+              onChange={(e) => setBookingData({ ...bookingData, duration: e.target.value })}
+              label="Duration"
+            >
+              <MenuItem value={30}>30 minutes</MenuItem>
+              <MenuItem value={60}>1 hour</MenuItem>
+              <MenuItem value={90}>1.5 hours</MenuItem>
+              <MenuItem value={120}>2 hours</MenuItem>
+            </Select>
+          </FormControl>
+          <FormControl fullWidth margin="normal">
+            <InputLabel>Session Type</InputLabel>
+            <Select
+              value={bookingData.sessionType}
+              onChange={(e) => setBookingData({ ...bookingData, sessionType: e.target.value })}
+              label="Session Type"
+            >
+              <MenuItem value="video_call">Video Call</MenuItem>
+              <MenuItem value="chat">Chat</MenuItem>
+              <MenuItem value="phone">Phone Call</MenuItem>
+              <MenuItem value="email">Email</MenuItem>
+            </Select>
+          </FormControl>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setBookingDialog(false)}>Cancel</Button>

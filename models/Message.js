@@ -4,7 +4,10 @@ const messageSchema = new mongoose.Schema({
   conversationId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Conversation',
-    required: true
+    required: function() {
+      // conversationId is required for all message types except 'global'
+      return this.messageType !== 'global';
+    }
   },
   senderId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -18,7 +21,7 @@ const messageSchema = new mongoose.Schema({
   },
   messageType: {
     type: String,
-    enum: ['text', 'file', 'image', 'system', 'broadcast'],
+    enum: ['text', 'file', 'image', 'system', 'broadcast', 'global'],
     default: 'text'
   },
   fileUrl: {
@@ -61,5 +64,6 @@ const messageSchema = new mongoose.Schema({
 messageSchema.index({ conversationId: 1, createdAt: 1 });
 messageSchema.index({ senderId: 1 });
 messageSchema.index({ read: 1 });
+messageSchema.index({ messageType: 1 }); // Add index for messageType
 
 module.exports = mongoose.model('Message', messageSchema);

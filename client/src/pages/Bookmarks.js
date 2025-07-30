@@ -489,7 +489,7 @@ const Bookmarks = () => {
 
                 {tabValue === 0 && item.expertise && (
                   <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
-                    <Chip label={item.expertise} size="small" color="primary" />
+                    <Chip label={item.expertise?.[0]?.field || 'General'} size="small" color="primary" />
                     <Chip label={`${item.experience} years`} size="small" />
                   </Box>
                 )}
@@ -606,7 +606,7 @@ const Bookmarks = () => {
                         Expertise:
                       </Typography>
                       <Typography variant="body2" color="text.secondary">
-                        {selectedBookmark.expertise}
+                        {selectedBookmark.expertise?.[0]?.field || 'General'}
                       </Typography>
                     </Grid>
                     <Grid item xs={6}>

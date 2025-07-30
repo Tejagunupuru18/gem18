@@ -46,12 +46,15 @@ import {
   Schedule,
   CheckCircle,
   Cancel,
+  Public,
 } from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
 
 const Messages = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [conversations, setConversations] = useState([]);
   const [selectedConversation, setSelectedConversation] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -207,9 +210,18 @@ const Messages = () => {
     <Container maxWidth="lg" sx={{ py: 4 }}>
       {/* Header */}
       <Box sx={{ mb: 4 }}>
-        <Typography variant="h4" gutterBottom>
-          Messages
-        </Typography>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+          <Typography variant="h4" gutterBottom>
+            Messages
+          </Typography>
+          <Button
+            variant="outlined"
+            startIcon={<Public />}
+            onClick={() => navigate('/global-messages')}
+          >
+            Global Messages
+          </Button>
+        </Box>
         <Typography variant="body1" color="text.secondary">
           Connect with mentors and fellow students
         </Typography>

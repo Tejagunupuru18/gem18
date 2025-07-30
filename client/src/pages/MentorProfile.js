@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Container,
   Typography,
@@ -70,6 +71,7 @@ import axios from 'axios';
 
 const MentorProfile = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [mentors, setMentors] = useState([]);
   const [filteredMentors, setFilteredMentors] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -128,22 +130,15 @@ const MentorProfile = () => {
   const fetchMentors = async () => {
     try {
       setLoading(true);
-      // Prepare query params for future backend integration
-      const params = {};
-      if (selectedExpertise) params.field = selectedExpertise;
-      if (selectedRating) params.rating = selectedRating;
-      if (selectedLanguage) params.language = selectedLanguage;
-      // For now, fetch all mentors (update endpoint and params when backend is ready)
-      const response = await axios.get('/api/students/mentors', { params });
-      // Support both array and object with mentors property
-      const mentorList = Array.isArray(response.data)
-        ? response.data
-        : (Array.isArray(response.data.mentors) ? response.data.mentors : []);
+      const response = await axios.get('/api/students/mentors');
+      const mentorList = Array.isArray(response.data) 
+        ? response.data 
+        : (response.data.mentors || []);
+      
+      console.log('Mentors data:', mentorList.slice(0, 1)); // Debug first mentor
       setMentors(mentorList);
       setFilteredMentors(mentorList);
     } catch (err) {
-      setMentors([]);
-      setFilteredMentors([]);
       setError('Failed to load mentors');
       console.error('Mentors fetch error:', err);
     } finally {
@@ -187,7 +182,7 @@ const MentorProfile = () => {
 
   const handleBookSession = (mentor) => {
     // Navigate to the session booking page with mentor ID
-    window.location.href = `/student/book-session/${mentor._id}`;
+    navigate(`/student/book-session/${mentor._id}`);
   };
 
   const handleSlotSelect = (mentor, day, slot) => {
@@ -359,23 +354,29 @@ const MentorProfile = () => {
                 <Box display="flex" alignItems="center" mb={2}>
                   <Avatar
                     sx={{ width: 60, height: 60, mr: 2 }}
-                    src={mentor.profileImage}
+                    src={mentor.userId?.profilePicture}
                   >
                     {(mentor.userId?.firstName || mentor.name || 'M').charAt(0)}
                   </Avatar>
                   <Box flexGrow={1}>
-                                        <Typography variant="h6" gutterBottom>
-                      {mentor.userId?.firstName && mentor.userId?.lastName ? `${mentor.userId.firstName} ${mentor.userId.lastName}` : mentor.name || 'Mentor'}
-                      {mentor.isVerified && (
+                    <Typography variant="h6" gutterBottom>
+                      {mentor.userId?.firstName && mentor.userId?.lastName 
+                        ? `${mentor.userId.firstName} ${mentor.userId.lastName}`
+                        : mentor.name 
+                        ? mentor.name
+                        : mentor.userId?.firstName 
+                        ? mentor.userId.firstName
+                        : 'Mentor'}
+                      {mentor.verification?.status === 'approved' && (
                         <Tooltip title="Verified Mentor">
                           <VerifiedUser sx={{ ml: 1, color: 'primary.main', fontSize: 20 }} />
                         </Tooltip>
-                  )}
+                      )}
                     </Typography>
                     <Box display="flex" alignItems="center">
-                      <Rating value={mentor.averageRating || 0} readOnly size="small" />
+                      <Rating value={mentor.ratings?.average || 0} readOnly size="small" />
                       <Typography variant="body2" sx={{ ml: 1 }}>
-                        ({mentor.totalRatings || 0} reviews)
+                        ({mentor.ratings?.totalReviews || 0} reviews)
                       </Typography>
                     </Box>
                   </Box>
@@ -383,7 +384,7 @@ const MentorProfile = () => {
 
                 {/* Expertise */}
                 <Box display="flex" alignItems="center" mb={2}>
-                  {getExpertiseIcon(mentor.expertise)}
+                  {getExpertiseIcon(mentor.expertise?.[0]?.field)}
                   <Typography variant="body2" sx={{ ml: 1 }}>
                     {mentor.expertise?.[0]?.field || 'General'}
                   </Typography>
@@ -660,7 +661,7 @@ const MentorProfile = () => {
                 onClick={() => {
                   setDialogOpen(false);
                   // Navigate to session booking with mentor ID
-                  window.location.href = `/student/book-session/${selectedMentor._id}`;
+                  navigate(`/student/book-session/${selectedMentor._id}`);
                 }}
               >
                 Book Session

@@ -31,6 +31,7 @@ import {
   Quiz,
   People,
   Article,
+  Message,
 } from '@mui/icons-material';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -106,6 +107,11 @@ const Navbar = () => {
       text: 'Dashboard',
       icon: <Dashboard />,
       path: getDashboardPath(user.role),
+    },
+    {
+      text: 'Global Messages',
+      icon: <Message />,
+      path: '/global-messages',
     },
     ...(user.role === 'student' ? [
       {

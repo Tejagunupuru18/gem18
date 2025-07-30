@@ -29,6 +29,7 @@ import Scholarships from './pages/Scholarships';
 import Calendar from './pages/Calendar';
 import Bookmarks from './pages/Bookmarks';
 import StudentVideoCall from './pages/StudentVideoCall';
+import GlobalMessages from './pages/GlobalMessages';
 
 // Protected Route Component
 const ProtectedRoute = ({ children, allowedRoles = [] }) => {
@@ -71,6 +72,16 @@ const AppContent = () => {
           <Route path="/" element={<Home />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
+          
+          {/* Global Messages Route - Accessible to all authenticated users */}
+          <Route
+            path="/global-messages"
+            element={
+              <ProtectedRoute>
+                <GlobalMessages />
+              </ProtectedRoute>
+            }
+          />
           
           {/* Protected Student Routes */}
           <Route

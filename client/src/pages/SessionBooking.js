@@ -282,9 +282,9 @@ const SessionBooking = () => {
                         </Box>
                         
                         <Box display="flex" alignItems="center" mb={1}>
-                          {getExpertiseIcon(mentor.expertise)}
+                          {getExpertiseIcon(mentor.expertise?.[0]?.field)}
                           <Typography variant="body2" sx={{ ml: 1 }}>
-                            {mentor.expertise}
+                            {mentor.expertise?.[0]?.field || 'General'}
                           </Typography>
                         </Box>
                         

@@ -4,6 +4,205 @@ const { auth, verifyMentor, verifyStudent } = require('../middleware/auth');
 const Conversation = require('../models/Conversation');
 const Message = require('../models/Message');
 
+// Send global message (visible to everyone) - MUST BE FIRST TO AVOID ROUTE CONFLICTS
+router.post('/global', auth, async (req, res) => {
+  try {
+    console.log('=== GLOBAL MESSAGE POST REQUEST ===');
+    console.log('Request body:', req.body);
+    console.log('User:', req.user);
+    console.log('Headers:', req.headers);
+
+    const { content, title } = req.body;
+    const senderId = req.user._id;
+
+    console.log('Extracted data:', {
+      content,
+      title,
+      senderId: senderId.toString(),
+      userRole: req.user.role
+    });
+
+    // Validate input
+    if (!content || content.trim() === '') {
+      console.log('❌ Validation failed: content is empty');
+      return res.status(400).json({ message: 'Message content is required' });
+    }
+
+    if (!senderId) {
+      console.log('❌ Validation failed: senderId is missing');
+      return res.status(400).json({ message: 'Sender ID is required' });
+    }
+
+    // Check database connection
+    const mongoose = require('mongoose');
+    if (mongoose.connection.readyState !== 1) {
+      console.log('❌ Database not connected. ReadyState:', mongoose.connection.readyState);
+      return res.status(500).json({ message: 'Database connection error' });
+    }
+
+    console.log('✅ Database connected. ReadyState:', mongoose.connection.readyState);
+
+    // Create global message
+    const messageData = {
+      conversationId: null, // Special conversation for global messages
+      senderId,
+      content: content.trim(),
+      messageType: 'global',
+      broadcastTitle: title || 'Global Message',
+      createdAt: new Date()
+    };
+
+    console.log('Message data to save:', JSON.stringify(messageData, null, 2));
+
+    // Validate the message data before creating
+    const Message = require('../models/Message');
+    const testMessage = new Message(messageData);
+    const validationError = testMessage.validateSync();
+    
+    if (validationError) {
+      console.log('❌ Message validation failed:', validationError.message);
+      console.log('Validation errors:', validationError.errors);
+      return res.status(400).json({ 
+        message: 'Message validation failed',
+        error: validationError.message,
+        details: validationError.errors
+      });
+    }
+
+    console.log('✅ Message validation passed');
+
+    const message = new Message(messageData);
+    console.log('Message object created, attempting to save...');
+
+    const savedMessage = await message.save();
+    console.log('✅ Message saved successfully:', savedMessage._id);
+
+    console.log('Populating sender info...');
+    await savedMessage.populate('senderId', 'firstName lastName email role');
+    console.log('✅ Sender info populated');
+
+    console.log('Global message created successfully:', {
+      id: savedMessage._id,
+      content: savedMessage.content,
+      sender: savedMessage.senderId,
+      messageType: savedMessage.messageType
+    });
+
+    res.status(201).json(savedMessage);
+  } catch (error) {
+    console.error('=== GLOBAL MESSAGE ERROR ===');
+    console.error('Error name:', error.name);
+    console.error('Error message:', error.message);
+    console.error('Error stack:', error.stack);
+    
+    if (error.errors) {
+      console.error('Validation errors:', error.errors);
+    }
+    
+    if (error.code) {
+      console.error('MongoDB error code:', error.code);
+    }
+    
+    if (error.writeErrors) {
+      console.error('MongoDB write errors:', error.writeErrors);
+    }
+
+    // Check if it's a MongoDB connection error
+    const mongoose = require('mongoose');
+    console.error('MongoDB connection state:', mongoose.connection.readyState);
+    console.error('MongoDB connection host:', mongoose.connection.host);
+    console.error('MongoDB connection port:', mongoose.connection.port);
+
+    res.status(500).json({ 
+      message: 'Error sending global message.',
+      error: error.message,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+});
+
+// Get global messages - MUST BE FIRST TO AVOID ROUTE CONFLICTS
+router.get('/global', auth, async (req, res) => {
+  try {
+    console.log('=== GLOBAL MESSAGE GET REQUEST ===');
+    console.log('Query params:', req.query);
+    console.log('User:', req.user);
+
+    const { page = 1, limit = 50 } = req.query;
+    const skip = (page - 1) * limit;
+
+    console.log('Fetching global messages with:', {
+      page: parseInt(page),
+      limit: parseInt(limit),
+      skip
+    });
+
+    // Check database connection
+    const mongoose = require('mongoose');
+    if (mongoose.connection.readyState !== 1) {
+      console.log('❌ Database not connected. ReadyState:', mongoose.connection.readyState);
+      return res.status(500).json({ message: 'Database connection error' });
+    }
+
+    console.log('✅ Database connected. ReadyState:', mongoose.connection.readyState);
+
+    const messages = await Message.find({
+      messageType: 'global'
+    })
+    .populate('senderId', 'firstName lastName email role')
+    .sort({ createdAt: -1 })
+    .limit(limit * 1)
+    .skip(skip);
+
+    console.log(`✅ Found ${messages.length} global messages`);
+
+    const total = await Message.countDocuments({ messageType: 'global' });
+    console.log(`✅ Total global messages: ${total}`);
+
+    const response = {
+      messages,
+      totalPages: Math.ceil(total / limit),
+      currentPage: parseInt(page),
+      total
+    };
+
+    console.log('Response data:', {
+      messagesCount: messages.length,
+      totalPages: response.totalPages,
+      currentPage: response.currentPage,
+      total: response.total
+    });
+
+    res.json(response);
+
+  } catch (error) {
+    console.error('=== GLOBAL MESSAGE GET ERROR ===');
+    console.error('Error name:', error.name);
+    console.error('Error message:', error.message);
+    console.error('Error stack:', error.stack);
+    
+    if (error.errors) {
+      console.error('Validation errors:', error.errors);
+    }
+    
+    if (error.code) {
+      console.error('MongoDB error code:', error.code);
+    }
+
+    // Check if it's a MongoDB connection error
+    const mongoose = require('mongoose');
+    console.error('MongoDB connection state:', mongoose.connection.readyState);
+    console.error('MongoDB connection host:', mongoose.connection.host);
+    console.error('MongoDB connection port:', mongoose.connection.port);
+
+    res.status(500).json({ 
+      message: 'Error fetching global messages.',
+      error: error.message,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+});
+
 // Get all conversations for a user (mentor or student)
 router.get('/conversations', auth, async (req, res) => {
   try {
