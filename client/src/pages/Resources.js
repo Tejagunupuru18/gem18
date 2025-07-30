@@ -122,7 +122,7 @@ const Resources = () => {
   const fetchResources = async () => {
     try {
       setLoading(true);
-      const response = await axios.get('/api/resources');
+      const response = await axios.get('/api/resources?includeMentorFiles=true');
       // Handle different response structures
       const resourceList = Array.isArray(response.data) 
         ? response.data 
@@ -139,8 +139,6 @@ const Resources = () => {
     }
   };
 
-
-
   const handleResourceClick = (resource) => {
     setSelectedResource(resource);
     setDialogOpen(true);
@@ -149,43 +147,100 @@ const Resources = () => {
   const handleDownload = async (resource) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.post(`/api/resources/${resource._id}/download`, {}, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        },
-        responseType: 'blob'
-      });
-
-      // Check if response contains download URL or external URL
-      if (response.headers['content-type'] && response.headers['content-type'].includes('application/json')) {
-        const data = JSON.parse(await response.data.text());
+      console.log('Downloading resource:', resource._id, resource.title);
+      console.log('Token available:', !!token);
+      
+      // Handle mentor files differently
+      if (resource.isMentorFile) {
+        console.log('Handling mentor file download');
+        // For mentor files, use the file download endpoint
+        const response = await axios.get(`/api/files/${resource._id}/download`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          },
+          responseType: 'blob'
+        });
         
-        if (data.downloadUrl) {
-          // Download file from URL
-          window.open(data.downloadUrl, '_blank');
-        } else if (data.externalUrl) {
-          // Open external URL
-          window.open(data.externalUrl, '_blank');
-        }
-      } else {
         // Create blob and download
         const blob = new Blob([response.data], { 
-          type: response.headers['content-type'] || 'text/plain' 
+          type: response.headers['content-type'] || 'application/octet-stream' 
         });
         const url = window.URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        link.download = resource.title.replace(/[^a-z0-9]/gi, '_') + '.txt';
+        link.download = resource.originalName || resource.title.replace(/[^a-z0-9]/gi, '_');
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
         window.URL.revokeObjectURL(url);
+      } else {
+        console.log('Handling regular resource download');
+        // Handle regular resources
+        const response = await axios.post(`/api/resources/${resource._id}/download`, {}, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          },
+          responseType: 'blob'
+        });
+
+        console.log('Response headers:', response.headers);
+        console.log('Response status:', response.status);
+
+        // Check content type to determine response format
+        const contentType = response.headers['content-type'] || '';
+        
+        if (contentType.includes('application/json')) {
+          // Parse JSON response for URLs
+          const text = await response.data.text();
+          const data = JSON.parse(text);
+          
+          if (data.downloadUrl) {
+            // Download file from URL
+            window.open(data.downloadUrl, '_blank');
+          } else if (data.externalUrl) {
+            // Open external URL
+            window.open(data.externalUrl, '_blank');
+          } else {
+            console.error('Unexpected JSON response:', data);
+            setError('Download failed: Invalid response format');
+          }
+        } else {
+          // Handle blob response (text file or other content)
+          const blob = new Blob([response.data], { 
+            type: contentType || 'text/plain' 
+          });
+          const url = window.URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          
+          // Get filename from content-disposition header or use resource title
+          const contentDisposition = response.headers['content-disposition'];
+          let filename = resource.title.replace(/[^a-z0-9]/gi, '_') + '.txt';
+          
+          if (contentDisposition) {
+            const filenameMatch = contentDisposition.match(/filename="([^"]+)"/);
+            if (filenameMatch) {
+              filename = filenameMatch[1];
+            }
+          }
+          
+          link.download = filename;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          window.URL.revokeObjectURL(url);
+        }
       }
 
       // Refresh resources to update download count
       fetchResources();
     } catch (error) {
       console.error('Download error:', error);
+      if (error.response) {
+        console.error('Error response:', error.response.data);
+        console.error('Error status:', error.response.status);
+        console.error('Error headers:', error.response.headers);
+      }
       setError('Failed to download resource');
     }
   };
@@ -339,6 +394,14 @@ const Resources = () => {
                   <Box ml={1} flexGrow={1}>
                     <Typography variant="h6" gutterBottom>
                       {resource.title}
+                      {resource.isMentorFile && (
+                        <Chip
+                          label="Mentor File"
+                          size="small"
+                          color="secondary"
+                          sx={{ ml: 1 }}
+                        />
+                      )}
                     </Typography>
                     <Box display="flex" alignItems="center">
                       <Rating value={resource.averageRating || 0} readOnly size="small" />
@@ -352,15 +415,22 @@ const Resources = () => {
                 {/* Category and Type */}
                 <Box display="flex" gap={1} mb={2}>
                   <Chip
-                    label={resourceCategories.find(c => c.value === resource.category)?.label}
+                    label={resourceCategories.find(c => c.value === resource.category)?.label || resource.category}
                     size="small"
                     icon={getCategoryIcon(resource.category)}
                   />
                   <Chip
-                    label={resourceTypes.find(t => t.value === resource.type)?.label}
+                    label={resourceTypes.find(t => t.value === resource.type)?.label || resource.type}
                     color={getTypeColor(resource.type)}
                     size="small"
                   />
+                  {resource.isMentorFile && resource.fileSize && (
+                    <Chip
+                      label={`${(resource.fileSize / 1024 / 1024).toFixed(1)} MB`}
+                      size="small"
+                      variant="outlined"
+                    />
+                  )}
                 </Box>
 
                 {/* Description */}
@@ -380,7 +450,7 @@ const Resources = () => {
                   </Box>
                   <Box textAlign="center">
                     <Typography variant="h6" color="success.main">
-                      {resource.downloads || 0}
+                      {resource.downloadCount || resource.downloads || 0}
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
                       Downloads
@@ -395,6 +465,16 @@ const Resources = () => {
                     </Typography>
                   </Box>
                 </Box>
+
+                {/* Mentor File Info */}
+                {resource.isMentorFile && resource.createdBy && (
+                  <Box display="flex" alignItems="center" mb={1}>
+                    <SchoolIcon sx={{ fontSize: 16, mr: 1 }} />
+                    <Typography variant="body2">
+                      By: {resource.createdBy.firstName} {resource.createdBy.lastName}
+                    </Typography>
+                  </Box>
+                )}
 
                 {/* Additional Info */}
                 {resource.deadline && (

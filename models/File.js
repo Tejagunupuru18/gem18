@@ -34,7 +34,23 @@ const fileSchema = new mongoose.Schema({
   category: {
     type: String,
     default: 'general',
-    enum: ['general', 'study-materials', 'assignments', 'presentations', 'resources', 'templates', 'guides']
+    enum: [
+      'general', 
+      'study_materials', 
+      'assignments', 
+      'presentations', 
+      'research_papers',
+      'career_guides',
+      'exam_preparation',
+      'scholarship_info',
+      'tutorials',
+      'templates',
+      'reference_materials',
+      'project_files',
+      'certificates',
+      'forms',
+      'other'
+    ]
   },
   tags: [{
     type: String,

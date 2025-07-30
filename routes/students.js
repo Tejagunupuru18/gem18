@@ -112,6 +112,9 @@ router.get('/mentors', auth, verifyStudent, async (req, res) => {
       filter.languages = language;
     }
 
+    console.log('Mentor filter:', filter);
+    console.log('Requested limit:', limit);
+
     const mentors = await Mentor.find(filter)
       .populate('userId', 'firstName lastName email profilePicture')
       .limit(limit * 1)
@@ -119,6 +122,11 @@ router.get('/mentors', auth, verifyStudent, async (req, res) => {
       .sort({ 'ratings.average': -1, 'stats.totalSessions': -1 });
 
     const total = await Mentor.countDocuments(filter);
+    const totalAllMentors = await Mentor.countDocuments({});
+
+    console.log('Total mentors found:', mentors.length);
+    console.log('Total approved mentors:', total);
+    console.log('Total all mentors in DB:', totalAllMentors);
 
     res.json({
       mentors,

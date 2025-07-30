@@ -96,7 +96,7 @@ const StudentDashboard = () => {
       setLoading(true);
       // Fetch mentors, sessions, resources, and stats
       const [mentorsRes, sessionsRes, resourcesRes, statsRes] = await Promise.all([
-        axios.get('/api/students/mentors'),
+        axios.get('/api/students/mentors?limit=50'), // Request more mentors
         axios.get('/api/students/sessions'),
         axios.get('/api/resources'),
         axios.get('/api/students/stats'),
@@ -108,7 +108,8 @@ const StudentDashboard = () => {
         : (mentorsRes.data.mentors || []);
       
       console.log('Mentors data structure:', mentorsData.slice(0, 1)); // Debug first mentor
-      setMentors(mentorsData.slice(0, 6)); // Show top 6 mentors
+      console.log('Total mentors fetched:', mentorsData.length); // Debug total count
+      setMentors(mentorsData); // Show all mentors instead of limiting to 6
       // Handle sessions data - it could be an array or object with sessions property
       const sessionsData = Array.isArray(sessionsRes.data) 
         ? sessionsRes.data 

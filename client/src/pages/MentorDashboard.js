@@ -49,9 +49,9 @@ import {
   Message,
   Settings,
   Visibility,
-  Chat,
   Description,
   Close,
+  Add,
 } from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
@@ -87,11 +87,7 @@ const MentorDashboard = () => {
   const [availabilityDialog, setAvailabilityDialog] = useState(false);
   const [tabValue, setTabValue] = useState(0);
   const [anchorEl, setAnchorEl] = useState(null);
-  const [chatMessages, setChatMessages] = useState([]);
-  const [chatInput, setChatInput] = useState('');
-  const [chatLoading, setChatLoading] = useState(false);
   const [error, setError] = useState('');
-  const chatEndRef = useRef(null);
   const [videoCallOpen, setVideoCallOpen] = useState(false);
   const [selectedSessionForCall, setSelectedSessionForCall] = useState(null);
   const [completionDialog, setCompletionDialog] = useState(false);
@@ -101,51 +97,26 @@ const MentorDashboard = () => {
     rating: 0,
     feedback: ''
   });
+  const [resources, setResources] = useState([]);
+  const [resourceDialog, setResourceDialog] = useState(false);
+  const [newResource, setNewResource] = useState({
+    title: '',
+    description: '',
+    type: 'article',
+    category: 'General',
+    content: {
+      body: '',
+      url: ''
+    }
+  });
   const [bulkCompletionDialog, setBulkCompletionDialog] = useState(false);
   const [selectedSessionsForBulk, setSelectedSessionsForBulk] = useState([]);
+  const [success, setSuccess] = useState('');
 
   useEffect(() => {
-    if (user && user.role === 'mentor') {
-      console.log('User is mentor:', user);
-      fetchDashboardData();
-    } else if (user && user.role !== 'mentor') {
-      setLoading(false);
-      setError('Access denied. Only mentors can access this dashboard.');
-      navigate('/');
-    } else {
-      setLoading(false);
-      setError('Please log in to access mentor dashboard.');
-    }
-  }, [user]);
-
-  // Fetch chat messages when a session is selected
-  useEffect(() => {
-    const fetchChat = async () => {
-      if (selectedSession && sessionDialog) {
-        setChatLoading(true);
-        try {
-          const res = await axios.get(`/api/sessions/${selectedSession._id}/chat`);
-          setChatMessages(res.data.chatHistory || []);
-        } catch (err) {
-          setChatMessages([]);
-        }
-        setChatLoading(false);
-      }
-    };
-    fetchChat();
-  }, [selectedSession, sessionDialog]);
-
-  const handleSendChat = async () => {
-    if (!chatInput.trim()) return;
-    try {
-      const res = await axios.post(`/api/sessions/${selectedSession._id}/chat`, { message: chatInput });
-      setChatMessages(prev => [...prev, res.data.chat]);
-      setChatInput('');
-      setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
-    } catch (err) {
-      // Optionally show error
-    }
-  };
+    fetchDashboardData();
+    fetchMentorResources();
+  }, []);
 
   const fetchDashboardData = async () => {
     try {
@@ -269,37 +240,56 @@ const MentorDashboard = () => {
 
   const handleBulkCompleteSessions = async () => {
     try {
-      const promises = selectedSessionsForBulk.map(session => 
-        axios.put(`/api/mentors/sessions/${session._id}`, {
-          status: 'completed',
-          actualDuration: parseInt(completionData.duration) || 0,
-          mentorNotes: completionData.notes,
-          mentorRating: completionData.rating,
-          mentorFeedback: completionData.feedback,
-          completedDate: new Date().toISOString()
-        })
-      );
-      
-      await Promise.all(promises);
-      
-      // Reset form
-      setCompletionData({
-        duration: '',
-        notes: '',
-        rating: 0,
-        feedback: ''
+      await axios.post('/api/mentors/sessions/bulk-complete', {
+        sessionIds: selectedSessionsForBulk
       });
-      
+      setSuccess('Sessions marked as complete!');
+      fetchDashboardData();
       setBulkCompletionDialog(false);
       setSelectedSessionsForBulk([]);
-      fetchDashboardData();
-      
-      // Show success message
-      setError('');
-      alert(`Successfully completed ${selectedSessionsForBulk.length} sessions!`);
     } catch (error) {
-      console.error('Error completing sessions:', error);
-      setError('Failed to complete some sessions. Please try again.');
+      setError('Failed to complete sessions');
+    }
+  };
+
+  const fetchMentorResources = async () => {
+    try {
+      const response = await axios.get('/api/resources', {
+        params: { createdBy: user._id }
+      });
+      const resourceList = Array.isArray(response.data) 
+        ? response.data 
+        : (response.data.resources || []);
+      setResources(resourceList);
+    } catch (error) {
+      console.error('Error fetching mentor resources:', error);
+    }
+  };
+
+  const handleAddResource = async () => {
+    try {
+      if (!newResource.title || !newResource.description) {
+        setError('Please fill in all required fields');
+        return;
+      }
+
+      await axios.post('/api/resources', newResource);
+      setSuccess('Resource submitted for approval!');
+      setResourceDialog(false);
+      setNewResource({
+        title: '',
+        description: '',
+        type: 'article',
+        category: 'General',
+        content: {
+          body: '',
+          url: ''
+        }
+      });
+      fetchMentorResources();
+    } catch (error) {
+      console.error('Error adding resource:', error);
+      setError(error.response?.data?.message || 'Failed to add resource');
     }
   };
 
@@ -411,6 +401,7 @@ const MentorDashboard = () => {
                 <Tab label="Upcoming Sessions" />
                 <Tab label="Recent Sessions" />
                 <Tab label="Statistics" />
+                <Tab label="Resources" />
               </Tabs>
             </Box>
 
@@ -635,29 +626,101 @@ const MentorDashboard = () => {
                         <Typography variant="h5" color="success.main">
                           {stats.completedSessions || 0}
                         </Typography>
-                        <Typography variant="body2">Completed</Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          Completed
+                        </Typography>
                       </Paper>
                     </Grid>
                     <Grid item xs={12} sm={4}>
-                      <Paper sx={{ p: 2, textAlign: 'center', bgcolor: 'primary.light' }}>
-                        <Schedule sx={{ fontSize: 40, color: 'primary.main', mb: 1 }} />
-                        <Typography variant="h5" color="primary.main">
-                          {Array.isArray(sessions) ? sessions.filter(s => s.status === 'upcoming').length : 0}
+                      <Paper sx={{ p: 2, textAlign: 'center', bgcolor: 'warning.light' }}>
+                        <Schedule sx={{ fontSize: 40, color: 'warning.main', mb: 1 }} />
+                        <Typography variant="h5" color="warning.main">
+                          {stats.upcomingSessions || 0}
                         </Typography>
-                        <Typography variant="body2">Upcoming</Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          Upcoming
+                        </Typography>
                       </Paper>
                     </Grid>
                     <Grid item xs={12} sm={4}>
-                      <Paper sx={{ p: 2, textAlign: 'center', bgcolor: 'error.light' }}>
-                        <Cancel sx={{ fontSize: 40, color: 'error.main', mb: 1 }} />
-                        <Typography variant="h5" color="error.main">
-                          {Array.isArray(sessions) ? sessions.filter(s => s.status === 'cancelled').length : 0}
+                      <Paper sx={{ p: 2, textAlign: 'center', bgcolor: 'info.light' }}>
+                        <TrendingUp sx={{ fontSize: 40, color: 'info.main', mb: 1 }} />
+                        <Typography variant="h5" color="info.main">
+                          {stats.totalSessions || 0}
                         </Typography>
-                        <Typography variant="body2">Cancelled</Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          Total
+                        </Typography>
                       </Paper>
                     </Grid>
                   </Grid>
                 </Box>
+              </Box>
+            )}
+
+            {/* Resources Tab */}
+            {tabValue === 3 && (
+              <Box>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+                  <Typography variant="h6">My Resources</Typography>
+                  <Button
+                    variant="contained"
+                    startIcon={<Description />}
+                    onClick={() => setResourceDialog(true)}
+                  >
+                    Add Resource
+                  </Button>
+                </Box>
+                
+                {resources.length > 0 ? (
+                  <Grid container spacing={3}>
+                    {resources.map((resource) => (
+                      <Grid item xs={12} md={6} key={resource._id}>
+                        <Card>
+                          <CardContent>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+                              <Typography variant="h6" gutterBottom>
+                                {resource.title}
+                              </Typography>
+                              <Chip 
+                                label={resource.status} 
+                                color={resource.status === 'active' ? 'success' : resource.status === 'pending' ? 'warning' : 'error'}
+                                size="small"
+                              />
+                            </Box>
+                            <Typography variant="body2" color="text.secondary" paragraph>
+                              {resource.description}
+                            </Typography>
+                            <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
+                              <Chip label={resource.type} size="small" />
+                              <Chip label={resource.category} size="small" />
+                            </Box>
+                            <Typography variant="caption" color="text.secondary">
+                              Created: {new Date(resource.createdAt).toLocaleDateString()}
+                            </Typography>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                    ))}
+                  </Grid>
+                ) : (
+                  <Paper sx={{ p: 4, textAlign: 'center' }}>
+                    <Description sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
+                    <Typography variant="h6" color="text.secondary" gutterBottom>
+                      No resources yet
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" paragraph>
+                      Start sharing your knowledge by adding resources for students.
+                    </Typography>
+                    <Button
+                      variant="contained"
+                      startIcon={<Description />}
+                      onClick={() => setResourceDialog(true)}
+                    >
+                      Add Your First Resource
+                    </Button>
+                  </Paper>
+                )}
               </Box>
             )}
           </Paper>
@@ -701,17 +764,6 @@ const MentorDashboard = () => {
                       onClick={() => navigate('/mentor/messages')}
                     >
                       Messages
-                    </Button>
-                  </Grid>
-                  <Grid item xs={12}>
-                    <Button
-                      variant="contained"
-                      fullWidth
-                      startIcon={<Chat />}
-                      onClick={() => navigate('/mentor/chat')}
-                      sx={{ backgroundColor: 'success.main', '&:hover': { backgroundColor: 'success.dark' } }}
-                    >
-                      Student Queries
                     </Button>
                   </Grid>
                   <Grid item xs={12}>
@@ -946,57 +998,10 @@ const MentorDashboard = () => {
               <Grid item xs={12}>
                 <Box sx={{ mt: 3, p: 2, bgcolor: 'grey.100', borderRadius: 2, maxHeight: 250, overflowY: 'auto' }}>
                 <Typography variant="subtitle1" gutterBottom>Session Chat</Typography>
-                {chatLoading ? (
-                  <CircularProgress size={20} />
-                ) : (
-                  <>
-                    {chatMessages.length === 0 && <Typography color="text.secondary">No messages yet.</Typography>}
-                    {chatMessages.map((msg, idx) => (
-                      <Box key={idx} sx={{ mb: 1, textAlign: msg.sender === 'mentor' ? 'right' : 'left' }}>
-                        <Chip
-                          label={msg.sender === 'mentor' ? 'You' : 'Student'}
-                          size="small"
-                          color={msg.sender === 'mentor' ? 'primary' : 'default'}
-                          sx={{ mb: 0.5 }}
-                        />
-                        <Box
-                          component="span"
-                          sx={{
-                            display: 'inline-block',
-                            bgcolor: msg.sender === 'mentor' ? 'primary.light' : 'grey.200',
-                            color: 'text.primary',
-                            px: 2,
-                            py: 1,
-                            borderRadius: 2,
-                            maxWidth: '70%',
-                            wordBreak: 'break-word',
-                            ml: msg.sender === 'mentor' ? 1 : 0,
-                            mr: msg.sender === 'mentor' ? 0 : 1,
-                          }}
-                        >
-                          {msg.message}
-                        </Box>
-                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                          {new Date(msg.timestamp).toLocaleTimeString()}
-                        </Typography>
-                      </Box>
-                    ))}
-                    <div ref={chatEndRef} />
-                  </>
-                )}
+                {/* Chat functionality removed as per edit hint */}
               </Box>
               <Box sx={{ display: 'flex', mt: 1 }}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  placeholder="Type a message..."
-                  value={chatInput}
-                  onChange={e => setChatInput(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') handleSendChat(); }}
-                />
-                <Button onClick={handleSendChat} variant="contained" sx={{ ml: 1 }} disabled={!chatInput.trim()}>
-                  Send
-                </Button>
+                {/* Chat input and send button removed as per edit hint */}
               </Box>
             </Grid>
             </Grid>
@@ -1227,6 +1232,108 @@ const MentorDashboard = () => {
             disabled={!completionData.duration || completionData.rating === 0}
           >
             Complete All Sessions ({selectedSessionsForBulk.length})
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Resource Dialog */}
+      <Dialog open={resourceDialog} onClose={() => setResourceDialog(false)} maxWidth="md" fullWidth>
+        <DialogTitle>
+          <Box display="flex" justifyContent="space-between" alignItems="center">
+            <Typography variant="h6">Add New Resource</Typography>
+            <IconButton onClick={() => setResourceDialog(false)}>
+              <Close />
+            </IconButton>
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          <Grid container spacing={2}>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Resource Title"
+                value={newResource.title}
+                onChange={(e) => setNewResource({...newResource, title: e.target.value})}
+                helperText="What's the title of your resource?"
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Resource Description"
+                multiline
+                rows={3}
+                value={newResource.description}
+                onChange={(e) => setNewResource({...newResource, description: e.target.value})}
+                helperText="Describe what your resource is about."
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={newResource.type === 'article'}
+                    onChange={(e) => setNewResource({...newResource, type: e.target.checked ? 'article' : 'video'})}
+                    name="type"
+                    color="primary"
+                  />
+                }
+                label="Article"
+              />
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={newResource.type === 'video'}
+                    onChange={(e) => setNewResource({...newResource, type: e.target.checked ? 'video' : 'article'})}
+                    name="type"
+                    color="primary"
+                  />
+                }
+                label="Video"
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Resource URL (for articles)"
+                value={newResource.content.url}
+                onChange={(e) => setNewResource({...newResource, content: {...newResource.content, url: e.target.value}})}
+                helperText="Provide a link to the article if it's an article."
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Resource Body (for articles)"
+                multiline
+                rows={4}
+                value={newResource.content.body}
+                onChange={(e) => setNewResource({...newResource, content: {...newResource.content, body: e.target.value}})}
+                helperText="Provide the content of the article if it's an article."
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Resource Category"
+                value={newResource.category}
+                onChange={(e) => setNewResource({...newResource, category: e.target.value})}
+                helperText="What category does your resource fall into?"
+              />
+            </Grid>
+          </Grid>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setResourceDialog(false)}>
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleAddResource}
+            variant="contained"
+            color="primary"
+            disabled={!newResource.title || !newResource.description || !newResource.type || (!newResource.content.url && newResource.type === 'article')}
+          >
+            Add Resource
           </Button>
         </DialogActions>
       </Dialog>

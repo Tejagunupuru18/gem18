@@ -130,12 +130,13 @@ const MentorProfile = () => {
   const fetchMentors = async () => {
     try {
       setLoading(true);
-      const response = await axios.get('/api/students/mentors');
+      const response = await axios.get('/api/students/mentors?limit=100'); // Request more mentors
       const mentorList = Array.isArray(response.data) 
         ? response.data 
         : (response.data.mentors || []);
       
       console.log('Mentors data:', mentorList.slice(0, 1)); // Debug first mentor
+      console.log('Total mentors fetched:', mentorList.length); // Debug total count
       setMentors(mentorList);
       setFilteredMentors(mentorList);
     } catch (err) {

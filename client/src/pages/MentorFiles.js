@@ -81,7 +81,7 @@ const MentorFiles = () => {
     description: '',
     category: 'general',
     tags: '',
-    isPublic: false
+    isPublic: true // Default to true so students can see mentor files
   });
 
   useEffect(() => {
@@ -113,10 +113,22 @@ const MentorFiles = () => {
 
   const fetchCategories = async () => {
     try {
+      console.log('Fetching categories...');
       const response = await axios.get('/api/files/categories');
+      console.log('Categories response:', response.data);
       setCategories(response.data);
     } catch (error) {
       console.error('Error fetching categories:', error);
+      console.error('Error response:', error.response?.data);
+      console.error('Error status:', error.response?.status);
+      // Set default categories if the API fails
+      setCategories([
+        { value: 'general', label: 'General' },
+        { value: 'study_materials', label: 'Study Materials' },
+        { value: 'assignments', label: 'Assignments' },
+        { value: 'presentations', label: 'Presentations' },
+        { value: 'other', label: 'Other' }
+      ]);
     }
   };
 
@@ -210,7 +222,7 @@ const MentorFiles = () => {
       description: '',
       category: 'general',
       tags: '',
-      isPublic: false
+      isPublic: true
     });
   };
 
@@ -291,8 +303,8 @@ const MentorFiles = () => {
               >
                 <MenuItem value="">All Categories</MenuItem>
                 {categories.map((category) => (
-                  <MenuItem key={category} value={category}>
-                    {category}
+                  <MenuItem key={category.value} value={category.value}>
+                    {category.label}
                   </MenuItem>
                 ))}
               </Select>
@@ -321,6 +333,7 @@ const MentorFiles = () => {
                   {getFileIcon(file.mimeType)}
                 </ListItemIcon>
                 <ListItemText
+                  disableTypography
                   primary={
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                       <Typography variant="subtitle1">
@@ -460,8 +473,8 @@ const MentorFiles = () => {
                 label="Category"
               >
                 {categories.map((category) => (
-                  <MenuItem key={category} value={category}>
-                    {category}
+                  <MenuItem key={category.value} value={category.value}>
+                    {category.label}
                   </MenuItem>
                 ))}
               </Select>
@@ -539,8 +552,8 @@ const MentorFiles = () => {
                   label="Category"
                 >
                   {categories.map((category) => (
-                    <MenuItem key={category} value={category}>
-                      {category}
+                    <MenuItem key={category.value} value={category.value}>
+                      {category.label}
                     </MenuItem>
                   ))}
                 </Select>

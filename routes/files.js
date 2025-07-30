@@ -51,6 +51,34 @@ const upload = multer({
   }
 });
 
+// Get file categories - MUST BE FIRST TO AVOID ROUTE CONFLICTS
+router.get('/categories', async (req, res) => {
+  try {
+    const categories = [
+      { value: 'general', label: 'General' },
+      { value: 'study_materials', label: 'Study Materials' },
+      { value: 'assignments', label: 'Assignments' },
+      { value: 'presentations', label: 'Presentations' },
+      { value: 'research_papers', label: 'Research Papers' },
+      { value: 'career_guides', label: 'Career Guides' },
+      { value: 'exam_preparation', label: 'Exam Preparation' },
+      { value: 'scholarship_info', label: 'Scholarship Information' },
+      { value: 'tutorials', label: 'Tutorials' },
+      { value: 'templates', label: 'Templates' },
+      { value: 'reference_materials', label: 'Reference Materials' },
+      { value: 'project_files', label: 'Project Files' },
+      { value: 'certificates', label: 'Certificates' },
+      { value: 'forms', label: 'Forms' },
+      { value: 'other', label: 'Other' }
+    ];
+    
+    res.json(categories);
+  } catch (error) {
+    console.error('Error fetching categories:', error);
+    res.status(500).json({ message: 'Error fetching categories' });
+  }
+});
+
 // Upload a file (mentor only)
 router.post('/upload', auth, verifyMentor, upload.single('file'), async (req, res) => {
   try {
@@ -72,7 +100,7 @@ router.post('/upload', auth, verifyMentor, upload.single('file'), async (req, re
       category: category || 'general',
       tags: tags ? tags.split(',').map(tag => tag.trim()) : [],
       uploadedBy: mentorId,
-      isPublic: req.body.isPublic === 'true'
+      isPublic: req.body.isPublic !== 'false' // Default to true unless explicitly set to false
     });
 
     await file.save();
@@ -267,17 +295,6 @@ router.delete('/:fileId', auth, verifyMentor, async (req, res) => {
   } catch (error) {
     console.error('Error deleting file:', error);
     res.status(500).json({ message: 'Error deleting file' });
-  }
-});
-
-// Get file categories
-router.get('/categories', auth, async (req, res) => {
-  try {
-    const categories = await File.distinct('category');
-    res.json(categories);
-  } catch (error) {
-    console.error('Error fetching categories:', error);
-    res.status(500).json({ message: 'Error fetching categories' });
   }
 });
 

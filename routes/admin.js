@@ -358,27 +358,116 @@ router.post('/reports/:reportId/:action', ...requireAuthAndAdmin, async (req, re
   }
 });
 
-// Send notifications
-router.post('/notifications/send', ...requireAuthAndAdmin, [
-  body('type').isIn(['email', 'sms', 'push']).withMessage('Valid notification type required'),
-  body('message').notEmpty().withMessage('Message is required')
-], async (req, res) => {
+// Send notifications to all users
+router.post('/notifications/send', requireAuthAndAdmin, async (req, res) => {
   try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
+    const { type, message, title } = req.body;
+
+    if (!message || message.trim() === '') {
+      return res.status(400).json({ message: 'Message is required' });
     }
 
-    const { type, message } = req.body;
+    // Get all users (students and mentors)
+    const User = require('../models/User');
+    const users = await User.find({ isActive: true }).select('email firstName lastName role');
 
-    // In a real app, you'd integrate with email/SMS services
-    // For now, we'll just log the notification
-    console.log(`Sending ${type} notification: ${message}`);
+    if (users.length === 0) {
+      return res.status(404).json({ message: 'No active users found' });
+    }
 
-    res.json({ message: 'Notification sent successfully' });
+    let sentCount = 0;
+    let failedCount = 0;
+
+    if (type === 'email') {
+      // Send email to all users
+      for (const user of users) {
+        try {
+          // In a real application, you would integrate with an email service like SendGrid, Mailgun, etc.
+          console.log(`Sending email to ${user.email}: ${message}`);
+          
+          // For now, we'll just log the email sending
+          // In production, you would use:
+          // await sendEmail(user.email, title || 'Platform Notification', message);
+          
+          sentCount++;
+        } catch (error) {
+          console.error(`Failed to send email to ${user.email}:`, error);
+          failedCount++;
+        }
+      }
+    } else if (type === 'push') {
+      // Send push notification to all users
+      for (const user of users) {
+        try {
+          // In a real application, you would integrate with a push notification service like Firebase, OneSignal, etc.
+          console.log(`Sending push notification to ${user.firstName} ${user.lastName}: ${message}`);
+          
+          // For now, we'll just log the push notification
+          // In production, you would use:
+          // await sendPushNotification(user.fcmToken, title || 'Platform Notification', message);
+          
+          sentCount++;
+        } catch (error) {
+          console.error(`Failed to send push notification to ${user.firstName} ${user.lastName}:`, error);
+          failedCount++;
+        }
+      }
+    } else {
+      return res.status(400).json({ message: 'Invalid notification type. Use "email" or "push"' });
+    }
+
+    res.json({
+      message: `Notification sent successfully!`,
+      details: {
+        type,
+        totalUsers: users.length,
+        sentCount,
+        failedCount,
+        message: message.substring(0, 100) + (message.length > 100 ? '...' : '')
+      }
+    });
+
   } catch (error) {
-    console.error('Error sending notification:', error);
-    res.status(500).json({ message: 'Server error' });
+    console.error('Send notification error:', error);
+    res.status(500).json({ message: 'Failed to send notifications' });
+  }
+});
+
+// Get notification settings
+router.get('/notifications', requireAuthAndAdmin, async (req, res) => {
+  try {
+    // In a real application, you would fetch these settings from a database
+    const settings = {
+      emailNotifications: true,
+      smsNotifications: false,
+      sessionReminders: true,
+      weeklyReports: true
+    };
+    
+    res.json(settings);
+  } catch (error) {
+    console.error('Get notification settings error:', error);
+    res.status(500).json({ message: 'Failed to fetch notification settings' });
+  }
+});
+
+// Update notification settings
+router.put('/notifications', requireAuthAndAdmin, async (req, res) => {
+  try {
+    const { emailNotifications, smsNotifications, sessionReminders, weeklyReports } = req.body;
+    
+    // In a real application, you would save these settings to a database
+    console.log('Updating notification settings:', {
+      emailNotifications,
+      smsNotifications,
+      sessionReminders,
+      weeklyReports
+    });
+    
+    res.json({ message: 'Notification settings updated successfully' });
+  } catch (error) {
+    console.error('Update notification settings error:', error);
+    res.status(500).json({ message: 'Failed to update notification settings' });
   }
 });
 

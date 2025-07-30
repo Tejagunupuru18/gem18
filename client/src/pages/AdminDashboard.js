@@ -110,11 +110,12 @@ const AdminDashboard = () => {
   const [success, setSuccess] = useState('');
   const [notificationSettings, setNotificationSettings] = useState({
     emailNotifications: true,
-    smsNotifications: false,
-    autoApproval: false,
     sessionReminders: true,
     weeklyReports: true
   });
+  const [emailMessage, setEmailMessage] = useState('');
+  const [pushMessage, setPushMessage] = useState('');
+  const [sendingNotification, setSendingNotification] = useState(false);
   const [resourceDialog, setResourceDialog] = useState(false);
   const [newResource, setNewResource] = useState({
     title: '',
@@ -152,6 +153,11 @@ const AdminDashboard = () => {
       setSessions(sessionsRes.data);
       setReports(reportsRes.data);
       setNotifications(notificationsRes.data);
+      
+      // Load notification settings
+      if (notificationsRes.data) {
+        setNotificationSettings(notificationsRes.data);
+      }
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
       setError('Failed to load dashboard data');
@@ -182,11 +188,27 @@ const AdminDashboard = () => {
     }
   };
 
-  const handleNotificationSettingsChange = (setting) => {
-    setNotificationSettings(prev => ({
-      ...prev,
-      [setting]: !prev[setting]
-    }));
+  const handleNotificationSettingsChange = async (setting) => {
+    try {
+      const newSettings = {
+        ...notificationSettings,
+        [setting]: !notificationSettings[setting]
+      };
+      
+      setNotificationSettings(newSettings);
+      
+      // Save settings to backend
+      await axios.put('/api/admin/notifications', newSettings);
+      setSuccess('Notification settings updated successfully!');
+    } catch (error) {
+      console.error('Update notification settings error:', error);
+      setError('Failed to update notification settings');
+      // Revert the change if it failed
+      setNotificationSettings(prev => ({
+        ...prev,
+        [setting]: !prev[setting]
+      }));
+    }
   };
 
   const handleAddResource = async () => {
@@ -222,10 +244,34 @@ const AdminDashboard = () => {
 
   const handleSendNotification = async (type, message) => {
     try {
-      await axios.post('/api/admin/notifications/send', { type, message });
-      setSuccess('Notification sent successfully!');
+      setSendingNotification(true);
+      setError('');
+      
+      if (!message || message.trim() === '') {
+        setError('Please enter a message');
+        return;
+      }
+
+      const response = await axios.post('/api/admin/notifications/send', { 
+        type, 
+        message: message.trim(),
+        title: type === 'email' ? 'Platform Update' : 'New Notification'
+      });
+      
+      setSuccess(`${type === 'email' ? 'Email' : 'Push notification'} sent successfully! ${response.data.details?.sentCount || 0} users notified.`);
+      
+      // Clear the message field after successful send
+      if (type === 'email') {
+        setEmailMessage('');
+      } else {
+        setPushMessage('');
+      }
+      
     } catch (error) {
-      setError('Failed to send notification');
+      console.error('Send notification error:', error);
+      setError(error.response?.data?.message || `Failed to send ${type} notification`);
+    } finally {
+      setSendingNotification(false);
     }
   };
 
@@ -820,15 +866,6 @@ const AdminDashboard = () => {
                       <FormControlLabel
                         control={
                           <Switch
-                            checked={notificationSettings.smsNotifications}
-                            onChange={() => handleNotificationSettingsChange('smsNotifications')}
-                          />
-                        }
-                        label="SMS Notifications"
-                      />
-                      <FormControlLabel
-                        control={
-                          <Switch
                             checked={notificationSettings.sessionReminders}
                             onChange={() => handleNotificationSettingsChange('sessionReminders')}
                           />
@@ -856,26 +893,37 @@ const AdminDashboard = () => {
                       Send Notifications
                     </Typography>
                     <Box display="flex" flexDirection="column" gap={2}>
+                      <TextField
+                        fullWidth
+                        label="Email Message"
+                        multiline
+                        rows={2}
+                        value={emailMessage}
+                        onChange={(e) => setEmailMessage(e.target.value)}
+                      />
                       <Button
                         variant="outlined"
-                        startIcon={<Email />}
-                        onClick={() => handleSendNotification('email', 'Platform update notification')}
+                        startIcon={sendingNotification ? <CircularProgress size={16} /> : <Email />}
+                        onClick={() => handleSendNotification('email', emailMessage)}
+                        disabled={!emailMessage || sendingNotification}
                       >
-                        Send Email to All Users
+                        {sendingNotification ? 'Sending...' : 'Send Email to All Users'}
                       </Button>
+                      <TextField
+                        fullWidth
+                        label="Push Message"
+                        multiline
+                        rows={2}
+                        value={pushMessage}
+                        onChange={(e) => setPushMessage(e.target.value)}
+                      />
                       <Button
                         variant="outlined"
-                        startIcon={<Sms />}
-                        onClick={() => handleSendNotification('sms', 'Important platform update')}
+                        startIcon={sendingNotification ? <CircularProgress size={16} /> : <Notifications />}
+                        onClick={() => handleSendNotification('push', pushMessage)}
+                        disabled={!pushMessage || sendingNotification}
                       >
-                        Send SMS to All Users
-                      </Button>
-                      <Button
-                        variant="outlined"
-                        startIcon={<Notifications />}
-                        onClick={() => handleSendNotification('push', 'New features available')}
-                      >
-                        Send Push Notification
+                        {sendingNotification ? 'Sending...' : 'Send Push Notification'}
                       </Button>
                     </Box>
                   </CardContent>
