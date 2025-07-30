@@ -31,7 +31,6 @@ import {
 import {
   Message,
   Send,
-  Search,
   MoreVert,
   AttachFile,
   EmojiEmotions,
@@ -58,11 +57,13 @@ const Messages = () => {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
   const [onlineUsers, setOnlineUsers] = useState(new Set());
   const messagesEndRef = useRef(null);
   const [showNewChatDialog, setShowNewChatDialog] = useState(false);
+  const [showBroadcastDialog, setShowBroadcastDialog] = useState(false);
   const [availableUsers, setAvailableUsers] = useState([]);
+  const [broadcastTitle, setBroadcastTitle] = useState('');
+  const [broadcastContent, setBroadcastContent] = useState('');
 
   useEffect(() => {
     fetchConversations();
@@ -140,12 +141,7 @@ const Messages = () => {
   const getFilteredConversations = () => {
     // Ensure conversations is an array before filtering
     const conversationsArray = Array.isArray(conversations) ? conversations : [];
-    return conversationsArray.filter(conversation => {
-      const searchLower = searchQuery.toLowerCase();
-      const participantName = conversation.participant?.firstName + ' ' + conversation.participant?.lastName;
-      return participantName.toLowerCase().includes(searchLower) ||
-             conversation.lastMessage?.content.toLowerCase().includes(searchLower);
-    });
+    return conversationsArray;
   };
 
   const formatTime = (timestamp) => {
@@ -175,6 +171,28 @@ const Messages = () => {
     }
   };
 
+  const handleSendBroadcast = async () => {
+    try {
+      if (!broadcastContent.trim()) {
+        return;
+      }
+
+      await axios.post('/api/chat/broadcast', {
+        title: broadcastTitle || 'Student Broadcast',
+        content: broadcastContent
+      });
+
+      setBroadcastContent('');
+      setBroadcastTitle('');
+      setShowBroadcastDialog(false);
+      
+      // Refresh conversations to show the broadcast
+      fetchConversations();
+    } catch (error) {
+      console.error('Error sending broadcast:', error);
+    }
+  };
+
   if (loading) {
     return (
       <Container maxWidth="lg" sx={{ py: 4 }}>
@@ -201,30 +219,25 @@ const Messages = () => {
         {/* Conversations List */}
         <Grid item xs={12} md={4}>
           <Paper sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-            {/* Search and New Chat */}
+            {/* New Chat */}
             <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
-              <TextField
-                fullWidth
-                placeholder="Search conversations..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <Search />
-                    </InputAdornment>
-                  ),
-                }}
-                size="small"
-              />
               <Button
                 fullWidth
                 variant="contained"
-                sx={{ mt: 1 }}
                 onClick={() => setShowNewChatDialog(true)}
               >
                 New Chat
               </Button>
+              {user.role === 'student' && (
+                <Button
+                  fullWidth
+                  variant="outlined"
+                  sx={{ mt: 1 }}
+                  onClick={() => setShowBroadcastDialog(true)}
+                >
+                  Send Broadcast
+                </Button>
+              )}
             </Box>
 
             {/* Conversations */}
@@ -457,6 +470,44 @@ const Messages = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setShowNewChatDialog(false)}>Cancel</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Broadcast Dialog */}
+      <Dialog open={showBroadcastDialog} onClose={() => setShowBroadcastDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Send Broadcast Message</DialogTitle>
+        <DialogContent>
+          <TextField
+            fullWidth
+            label="Title (Optional)"
+            placeholder="Broadcast title..."
+            value={broadcastTitle}
+            onChange={(e) => setBroadcastTitle(e.target.value)}
+            sx={{ mb: 2, mt: 1 }}
+          />
+          <TextField
+            fullWidth
+            label="Message"
+            placeholder="Type your broadcast message..."
+            multiline
+            rows={4}
+            value={broadcastContent}
+            onChange={(e) => setBroadcastContent(e.target.value)}
+            required
+          />
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+            This message will be sent to all other students in the platform.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowBroadcastDialog(false)}>Cancel</Button>
+          <Button 
+            onClick={handleSendBroadcast}
+            variant="contained"
+            disabled={!broadcastContent.trim()}
+          >
+            Send Broadcast
+          </Button>
         </DialogActions>
       </Dialog>
 

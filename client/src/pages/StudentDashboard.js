@@ -96,9 +96,21 @@ const StudentDashboard = () => {
         axios.get('/api/students/stats'),
       ]);
 
-      setMentors(mentorsRes.data.slice(0, 6)); // Show top 6 mentors
-      setSessions(sessionsRes.data);
-      setResources(resourcesRes.data.slice(0, 4)); // Show top 4 resources
+      // Handle mentors data - it could be an array or object with mentors property
+      const mentorsData = Array.isArray(mentorsRes.data) 
+        ? mentorsRes.data 
+        : (mentorsRes.data.mentors || []);
+      setMentors(mentorsData.slice(0, 6)); // Show top 6 mentors
+      // Handle sessions data - it could be an array or object with sessions property
+      const sessionsData = Array.isArray(sessionsRes.data) 
+        ? sessionsRes.data 
+        : (sessionsRes.data.sessions || sessionsRes.data || []);
+      setSessions(sessionsData);
+      // Handle resources data - it could be an array or object with resources property
+      const resourcesData = Array.isArray(resourcesRes.data) 
+        ? resourcesRes.data 
+        : (resourcesRes.data.resources || resourcesRes.data);
+      setResources(Array.isArray(resourcesData) ? resourcesData.slice(0, 4) : []); // Show top 4 resources
       setStats(statsRes.data);
     } catch (error) {
       console.error('Error fetching dashboard data:', error);

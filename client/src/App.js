@@ -12,6 +12,7 @@ import Register from './pages/Register';
 import StudentDashboard from './pages/StudentDashboard';
 import MentorDashboard from './pages/MentorDashboard';
 import AdminDashboard from './pages/AdminDashboard';
+import AdminProfile from './pages/AdminProfile';
 import MentorProfile from './pages/MentorProfile';
 import SessionBooking from './pages/SessionBooking';
 import Resources from './pages/Resources';
@@ -121,6 +122,7 @@ const AppContent = () => {
               <ProtectedRoute allowedRoles={['admin']}>
                 <Routes>
                   <Route path="/" element={<AdminDashboard />} />
+                  <Route path="/profile" element={<AdminProfile />} />
                   <Route path="/users" element={<AdminDashboard />} />
                   <Route path="/mentors" element={<AdminDashboard />} />
                   <Route path="/resources" element={<AdminDashboard />} />

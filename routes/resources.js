@@ -248,4 +248,65 @@ router.get('/category/:category', async (req, res) => {
   }
 });
 
+// Download resource
+router.post('/:resourceId/download', auth, async (req, res) => {
+  try {
+    const { resourceId } = req.params;
+    const resource = await Resource.findById(resourceId);
+
+    if (!resource) {
+      return res.status(404).json({ message: 'Resource not found.' });
+    }
+
+    // Increment download count
+    await resource.incrementDownloads();
+
+    // If resource has a file URL, return it for download
+    if (resource.content && resource.content.fileUrl) {
+      return res.json({
+        message: 'Download link generated',
+        downloadUrl: resource.content.fileUrl,
+        filename: resource.title
+      });
+    }
+
+    // If resource has content body, create a downloadable text file
+    if (resource.content && resource.content.body) {
+      const content = `
+Resource: ${resource.title}
+Category: ${resource.category}
+Type: ${resource.type}
+Description: ${resource.description}
+
+Content:
+${resource.content.body}
+
+${resource.financialInfo ? `Financial Information: ${JSON.stringify(resource.financialInfo, null, 2)}` : ''}
+${resource.eligibility ? `Eligibility: ${JSON.stringify(resource.eligibility, null, 2)}` : ''}
+${resource.applicationProcess ? `Application Process: ${JSON.stringify(resource.applicationProcess, null, 2)}` : ''}
+      `;
+
+      res.setHeader('Content-Type', 'text/plain');
+      res.setHeader('Content-Disposition', `attachment; filename="${resource.title.replace(/[^a-z0-9]/gi, '_')}.txt"`);
+      res.send(content);
+      return;
+    }
+
+    // If resource has a URL, redirect to it
+    if (resource.content && resource.content.url) {
+      return res.json({
+        message: 'External link',
+        externalUrl: resource.content.url,
+        filename: resource.title
+      });
+    }
+
+    res.status(400).json({ message: 'No downloadable content available for this resource.' });
+
+  } catch (error) {
+    console.error('Download resource error:', error);
+    res.status(500).json({ message: 'Server error downloading resource.' });
+  }
+});
+
 module.exports = router; 

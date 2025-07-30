@@ -98,10 +98,93 @@ router.post('/conversations/:conversationId/messages', auth, async (req, res) =>
     // Populate sender info for response
     await message.populate('senderId', 'firstName lastName');
 
-    res.status(201).json(message);
+    res.json(message);
   } catch (error) {
     console.error('Error sending message:', error);
     res.status(500).json({ message: 'Error sending message' });
+  }
+});
+
+// Send broadcast message to all students
+router.post('/broadcast', auth, async (req, res) => {
+  try {
+    const { content, title } = req.body;
+    const senderId = req.user._id;
+
+    if (!content || content.trim() === '') {
+      return res.status(400).json({ message: 'Message content is required' });
+    }
+
+    // Only students can send broadcast messages
+    if (req.user.role !== 'student') {
+      return res.status(403).json({ message: 'Only students can send broadcast messages' });
+    }
+
+    // Get all students except the sender
+    const Student = require('../models/Student');
+    const students = await Student.find({ userId: { $ne: senderId } })
+      .populate('userId', 'firstName lastName email');
+
+    if (students.length === 0) {
+      return res.status(404).json({ message: 'No other students found' });
+    }
+
+    const broadcastMessages = [];
+    const currentTime = new Date();
+
+    // Create broadcast messages for each student
+    for (const student of students) {
+      if (student.userId && student.userId._id) {
+        const message = new Message({
+          conversationId: null, // Special conversation for broadcasts
+          senderId,
+          content: content.trim(),
+          messageType: 'broadcast',
+          broadcastTitle: title || 'Student Broadcast',
+          broadcastTo: student.userId._id,
+          createdAt: currentTime
+        });
+        
+        await message.save();
+        broadcastMessages.push(message);
+      }
+    }
+
+    res.json({
+      message: 'Broadcast message sent successfully',
+      sentTo: students.length,
+      messages: broadcastMessages
+    });
+
+  } catch (error) {
+    console.error('Error sending broadcast message:', error);
+    res.status(500).json({ message: 'Error sending broadcast message' });
+  }
+});
+
+// Get broadcast messages for a student
+router.get('/broadcast', auth, async (req, res) => {
+  try {
+    const userId = req.user._id;
+
+    // Only students can receive broadcast messages
+    if (req.user.role !== 'student') {
+      return res.status(403).json({ message: 'Only students can receive broadcast messages' });
+    }
+
+    const broadcastMessages = await Message.find({
+      messageType: 'broadcast',
+      broadcastTo: userId
+    })
+    .populate('senderId', 'firstName lastName')
+    .sort({ createdAt: -1 })
+    .limit(50);
+
+    res.json(broadcastMessages);
+
+  } catch (error) {
+    console.error('Error fetching broadcast messages:', error);
+    res.status(500).json({ message: 'Error fetching broadcast messages' });
   }
 });
 

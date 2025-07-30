@@ -18,7 +18,7 @@ const messageSchema = new mongoose.Schema({
   },
   messageType: {
     type: String,
-    enum: ['text', 'file', 'image', 'system'],
+    enum: ['text', 'file', 'image', 'system', 'broadcast'],
     default: 'text'
   },
   fileUrl: {
@@ -31,6 +31,16 @@ const messageSchema = new mongoose.Schema({
   },
   fileSize: {
     type: Number,
+    default: null
+  },
+  // Broadcast message fields
+  broadcastTitle: {
+    type: String,
+    default: null
+  },
+  broadcastTo: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
     default: null
   },
   read: {

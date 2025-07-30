@@ -146,9 +146,48 @@ const Resources = () => {
     setDialogOpen(true);
   };
 
-  const handleDownload = (resource) => {
-    // Handle resource download
-    console.log('Downloading:', resource.title);
+  const handleDownload = async (resource) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.post(`/api/resources/${resource._id}/download`, {}, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        responseType: 'blob'
+      });
+
+      // Check if response contains download URL or external URL
+      if (response.headers['content-type'] && response.headers['content-type'].includes('application/json')) {
+        const data = JSON.parse(await response.data.text());
+        
+        if (data.downloadUrl) {
+          // Download file from URL
+          window.open(data.downloadUrl, '_blank');
+        } else if (data.externalUrl) {
+          // Open external URL
+          window.open(data.externalUrl, '_blank');
+        }
+      } else {
+        // Create blob and download
+        const blob = new Blob([response.data], { 
+          type: response.headers['content-type'] || 'text/plain' 
+        });
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = resource.title.replace(/[^a-z0-9]/gi, '_') + '.txt';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+      }
+
+      // Refresh resources to update download count
+      fetchResources();
+    } catch (error) {
+      console.error('Download error:', error);
+      setError('Failed to download resource');
+    }
   };
 
   const handleShare = (resource) => {

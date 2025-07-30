@@ -47,10 +47,13 @@ import {
   ArrowForward,
 } from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
+import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
 const SessionBooking = () => {
-  // const { user } = useAuth(); // Unused variable
+  const { user } = useAuth();
+  const { mentorId } = useParams();
+  const navigate = useNavigate();
   const [mentors, setMentors] = useState([]);
   const [selectedMentor, setSelectedMentor] = useState(null);
   const [selectedDate, setSelectedDate] = useState('');
@@ -94,13 +97,27 @@ const SessionBooking = () => {
 
   useEffect(() => {
     fetchMentors();
-  }, []);
+  }, [mentorId]);
 
   const fetchMentors = async () => {
     try {
       setLoading(true);
       const response = await axios.get('/api/students/mentors');
-      setMentors(response.data);
+      const mentorList = Array.isArray(response.data) 
+        ? response.data 
+        : (response.data.mentors || []);
+      setMentors(mentorList);
+      
+      // If mentorId is provided, find and select that mentor
+      if (mentorId) {
+        const mentor = mentorList.find(m => m._id === mentorId);
+        if (mentor) {
+          setSelectedMentor(mentor);
+          setActiveStep(1); // Skip to step 2 (session details)
+        } else {
+          setError('Mentor not found');
+        }
+      }
     } catch (err) {
       setError('Failed to load mentors');
       console.error('Mentors fetch error:', err);
@@ -146,13 +163,18 @@ const SessionBooking = () => {
         description: sessionDescription,
         scheduledDate: `${selectedDate}T${selectedTime}:00.000Z`,
         duration: sessionDuration,
-        type: sessionType,
+        sessionType: sessionType === 'video' ? 'video_call' : 
+                    sessionType === 'chat' ? 'chat' : 
+                    sessionType === 'in-person' ? 'phone' : 'video_call',
         topics: topics,
       };
 
       const response = await axios.post('/api/students/sessions', sessionData);
-      setSuccess('Session booked successfully!');
-      handleReset();
+      setSuccess('Session booked successfully! Redirecting to sessions page...');
+      // Navigate back to sessions page after successful booking
+      setTimeout(() => {
+        navigate('/student/sessions');
+      }, 2000);
     } catch (err) {
       setError('Failed to book session');
       console.error('Booking error:', err);

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import axios from 'axios';
+import socketService from '../services/socketService';
 
 // Set up axios base URL
 axios.defaults.baseURL = 'http://localhost:5000';
@@ -41,6 +42,10 @@ export const AuthProvider = ({ children }) => {
         try {
           const response = await axios.get('/api/auth/profile');
           setUser(response.data.user);
+          
+          // Initialize Socket.IO connection for existing user
+          socketService.connect(token);
+          socketService.joinRoom(response.data.user.id);
         } catch (error) {
           console.error('Auth check failed:', error);
           localStorage.removeItem('token');
@@ -65,6 +70,11 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem('token', token);
       axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
       setUser(user);
+      
+      // Initialize Socket.IO connection
+      socketService.connect(token);
+      socketService.joinRoom(user.id);
+      
       return { success: true };
     } catch (error) {
       let message = 'Login failed';
@@ -119,6 +129,9 @@ export const AuthProvider = ({ children }) => {
     delete axios.defaults.headers.common['Authorization'];
     setUser(null);
     setError(null);
+    
+    // Disconnect Socket.IO
+    socketService.disconnect();
   };
 
   const updateProfile = async (profileData) => {

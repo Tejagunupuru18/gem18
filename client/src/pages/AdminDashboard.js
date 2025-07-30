@@ -120,7 +120,7 @@ const AdminDashboard = () => {
     title: '',
     description: '',
     type: 'scholarship',
-    category: 'general',
+    category: 'General',
     eligibility: '',
     deadline: '',
     amount: '',
@@ -198,7 +198,7 @@ const AdminDashboard = () => {
         title: '',
         description: '',
         type: 'scholarship',
-        category: 'general',
+        category: 'General',
         eligibility: '',
         deadline: '',
         amount: '',
@@ -918,9 +918,11 @@ const AdminDashboard = () => {
                   label="Type"
                 >
                   <MenuItem value="scholarship">Scholarship</MenuItem>
-                  <MenuItem value="guide">Guide</MenuItem>
+                  <MenuItem value="career_guide">Career Guide</MenuItem>
+                  <MenuItem value="exam_guide">Exam Guide</MenuItem>
                   <MenuItem value="article">Article</MenuItem>
                   <MenuItem value="video">Video</MenuItem>
+                  <MenuItem value="document">Document</MenuItem>
                 </Select>
               </FormControl>
             </Grid>
@@ -932,11 +934,23 @@ const AdminDashboard = () => {
                   onChange={(e) => setNewResource(prev => ({ ...prev, category: e.target.value }))}
                   label="Category"
                 >
-                  <MenuItem value="general">General</MenuItem>
-                  <MenuItem value="engineering">Engineering</MenuItem>
-                  <MenuItem value="medical">Medical</MenuItem>
-                  <MenuItem value="arts">Arts</MenuItem>
-                  <MenuItem value="commerce">Commerce</MenuItem>
+                  <MenuItem value="General">General</MenuItem>
+                  <MenuItem value="Engineering">Engineering</MenuItem>
+                  <MenuItem value="Medical">Medical</MenuItem>
+                  <MenuItem value="Arts">Arts</MenuItem>
+                  <MenuItem value="Commerce">Commerce</MenuItem>
+                  <MenuItem value="Law">Law</MenuItem>
+                  <MenuItem value="Agriculture">Agriculture</MenuItem>
+                  <MenuItem value="Computer Science">Computer Science</MenuItem>
+                  <MenuItem value="Design">Design</MenuItem>
+                  <MenuItem value="Teaching">Teaching</MenuItem>
+                  <MenuItem value="Business">Business</MenuItem>
+                  <MenuItem value="Sports">Sports</MenuItem>
+                  <MenuItem value="Music">Music</MenuItem>
+                  <MenuItem value="Dance">Dance</MenuItem>
+                  <MenuItem value="Literature">Literature</MenuItem>
+                  <MenuItem value="Science">Science</MenuItem>
+                  <MenuItem value="Technology">Technology</MenuItem>
                 </Select>
               </FormControl>
             </Grid>

@@ -262,11 +262,15 @@ router.put('/users/:userId', [
 });
 
 // Add new resource
-router.post('/resources', [
+router.post('/resources', ...requireAuthAndAdmin, [
   body('title').notEmpty().withMessage('Title is required'),
   body('description').notEmpty().withMessage('Description is required'),
-  body('type').isIn(['scholarship', 'guide', 'article', 'video']).withMessage('Valid type required'),
-  body('category').notEmpty().withMessage('Category is required')
+  body('type').isIn(['scholarship', 'career_guide', 'exam_guide', 'article', 'video', 'document']).withMessage('Valid type required'),
+  body('category').isIn([
+    'Engineering', 'Medical', 'Arts', 'Commerce', 'Law', 'Agriculture',
+    'Computer Science', 'Design', 'Teaching', 'Business', 'Sports',
+    'Music', 'Dance', 'Literature', 'Science', 'Technology', 'General'
+  ]).withMessage('Valid category required')
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -276,7 +280,10 @@ router.post('/resources', [
 
     const resource = new Resource({
       ...req.body,
-      addedBy: req.user._id
+      createdBy: req.user._id,
+      approvedBy: req.user._id,
+      approvedAt: new Date(),
+      status: 'active'
     });
 
     await resource.save();
@@ -288,7 +295,7 @@ router.post('/resources', [
 });
 
 // Update resource
-router.put('/resources/:resourceId', [
+router.put('/resources/:resourceId', ...requireAuthAndAdmin, [
   body('title').notEmpty().withMessage('Title is required'),
   body('description').notEmpty().withMessage('Description is required')
 ], async (req, res) => {

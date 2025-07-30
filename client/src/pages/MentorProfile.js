@@ -186,8 +186,8 @@ const MentorProfile = () => {
   };
 
   const handleBookSession = (mentor) => {
-    setSelectedMentor(mentor);
-    setDialogOpen(true);
+    // Navigate to the session booking page with mentor ID
+    window.location.href = `/student/book-session/${mentor._id}`;
   };
 
   const handleSlotSelect = (mentor, day, slot) => {
@@ -217,8 +217,13 @@ const MentorProfile = () => {
   };
 
   const getAvailabilityStatus = (mentor) => {
-    if (mentor.availability?.length > 0) {
-      return 'Available';
+    // Check if mentor is approved and has availability
+    if (mentor.verification?.status === 'approved' && mentor.availability?.length > 0) {
+      // Check if there are any available slots
+      const hasAvailableSlots = mentor.availability.some(day => 
+        day.slots && day.slots.some(slot => slot.isAvailable)
+      );
+      return hasAvailableSlots ? 'Available' : 'Busy';
     }
     return 'Busy';
   };
@@ -653,8 +658,9 @@ const MentorProfile = () => {
                 variant="contained"
                 startIcon={<Schedule />}
                 onClick={() => {
-                  // Navigate to session booking
                   setDialogOpen(false);
+                  // Navigate to session booking with mentor ID
+                  window.location.href = `/student/book-session/${selectedMentor._id}`;
                 }}
               >
                 Book Session
