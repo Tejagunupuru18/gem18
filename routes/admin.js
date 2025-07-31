@@ -33,11 +33,11 @@ router.get('/stats', ...requireAuthAndAdmin, async (req, res) => {
     ] = await Promise.all([
       User.countDocuments(),
       Student.countDocuments(),
-      Mentor.countDocuments(),
-      Mentor.countDocuments({ 'verification.status': 'approved' }),
+      User.countDocuments({ role: 'mentor' }),
+      User.countDocuments({ role: 'mentor', approvalStatus: 'approved' }),
       Session.countDocuments(),
       Session.countDocuments({ status: 'completed' }),
-      Mentor.countDocuments({ 'verification.status': 'pending' })
+      User.countDocuments({ role: 'mentor', approvalStatus: 'pending' })
     ]);
 
     // Calculate monthly growth
@@ -78,26 +78,63 @@ router.get('/stats', ...requireAuthAndAdmin, async (req, res) => {
   }
 });
 
-// Get pending mentor verifications
+// Get pending mentor approvals
 router.get('/pending-mentors', ...requireAuthAndAdmin, async (req, res) => {
   try {
-    const pendingMentors = await Mentor.find({ 'verification.status': 'pending' })
-      .populate('userId', 'name email')
-      .select('userId expertise experience professional bio verification');
+    const pendingMentors = await User.find({ 
+      role: 'mentor', 
+      approvalStatus: 'pending' 
+    }).select('-password');
 
-    const mentorsWithUserData = pendingMentors.map(mentor => ({
-      _id: mentor._id,
-      name: mentor.userId.name,
-      email: mentor.userId.email,
-      expertise: mentor.expertise,
-      experience: mentor.professional?.experience || 0,
-      bio: mentor.bio,
-      verification: mentor.verification
-    }));
+    const mentorsWithProfiles = await Promise.all(
+      pendingMentors.map(async (user) => {
+        const mentorProfile = await Mentor.findOne({ userId: user._id });
+        return {
+          _id: user._id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          phone: user.phone,
+          createdAt: user.createdAt,
+          mentorProfile: mentorProfile || null
+        };
+      })
+    );
 
-    res.json(mentorsWithUserData);
+    res.json(mentorsWithProfiles);
   } catch (error) {
     console.error('Error fetching pending mentors:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Get rejected mentors
+router.get('/rejected-mentors', ...requireAuthAndAdmin, async (req, res) => {
+  try {
+    const rejectedMentors = await User.find({ 
+      role: 'mentor', 
+      approvalStatus: 'rejected' 
+    }).select('-password');
+
+    const mentorsWithProfiles = await Promise.all(
+      rejectedMentors.map(async (user) => {
+        const mentorProfile = await Mentor.findOne({ userId: user._id });
+        return {
+          _id: user._id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          phone: user.phone,
+          createdAt: user.createdAt,
+          rejectionReason: user.rejectionReason,
+          mentorProfile: mentorProfile || null
+        };
+      })
+    );
+
+    res.json(mentorsWithProfiles);
+  } catch (error) {
+    console.error('Error fetching rejected mentors:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });
@@ -192,8 +229,9 @@ router.get('/notifications', ...requireAuthAndAdmin, async (req, res) => {
 });
 
 // Approve/Reject mentor
-router.post('/mentors/:action', [
-  body('mentorId').isMongoId().withMessage('Valid mentor ID required')
+router.post('/mentors/:action', ...requireAuthAndAdmin, [
+  body('mentorId').isMongoId().withMessage('Valid mentor ID required'),
+  body('rejectionReason').optional().isString().withMessage('Rejection reason must be a string')
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -202,29 +240,54 @@ router.post('/mentors/:action', [
     }
 
     const { action } = req.params;
-    const { mentorId } = req.body;
+    const { mentorId, rejectionReason } = req.body;
 
     if (!['approve', 'reject'].includes(action)) {
       return res.status(400).json({ message: 'Invalid action' });
     }
 
-    const mentor = await Mentor.findById(mentorId);
-    if (!mentor) {
+    const user = await User.findById(mentorId);
+    if (!user || user.role !== 'mentor') {
       return res.status(404).json({ message: 'Mentor not found' });
     }
 
-    mentor.verification.status = action === 'approve' ? 'approved' : 'rejected';
-    mentor.verification.reviewedBy = req.user._id;
-    mentor.verification.reviewedAt = new Date();
-
-    await mentor.save();
-
-    // Update user status if approved
     if (action === 'approve') {
-      await User.findByIdAndUpdate(mentor.userId, { status: 'active' });
+      user.approvalStatus = 'approved';
+      user.approvalDate = new Date();
+      user.approvedBy = req.user._id;
+      user.isVerified = true;
+      user.rejectionReason = undefined;
+    } else {
+      user.approvalStatus = 'rejected';
+      user.rejectionReason = rejectionReason || 'No reason provided';
+      user.approvedBy = req.user._id;
     }
 
-    res.json({ message: `Mentor ${action}d successfully` });
+    await user.save();
+
+    // Update mentor profile verification status
+    const mentorProfile = await Mentor.findOne({ userId: mentorId });
+    if (mentorProfile) {
+      mentorProfile.verification.status = action === 'approve' ? 'approved' : 'rejected';
+      mentorProfile.verification.verifiedBy = req.user._id;
+      mentorProfile.verification.verifiedAt = new Date();
+      if (action === 'reject') {
+        mentorProfile.verification.rejectionReason = rejectionReason;
+      }
+      await mentorProfile.save();
+    }
+
+    res.json({ 
+      message: `Mentor ${action}d successfully`,
+      mentor: {
+        id: user._id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        approvalStatus: user.approvalStatus,
+        approvalDate: user.approvalDate
+      }
+    });
   } catch (error) {
     console.error('Error processing mentor action:', error);
     res.status(500).json({ message: 'Server error' });

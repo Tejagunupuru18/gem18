@@ -32,10 +32,15 @@ const Login = () => {
     });
   };
 
+  const [approvalStatus, setApprovalStatus] = useState(null);
+  const [rejectionReason, setRejectionReason] = useState(null);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     clearError();
+    setApprovalStatus(null);
+    setRejectionReason(null);
 
     const result = await login(formData.email, formData.password);
     
@@ -43,6 +48,12 @@ const Login = () => {
       // Redirect based on user role
       const dashboardPath = `/${result.user.role}`;
       navigate(dashboardPath);
+    } else {
+      // Handle approval status
+      if (result.approvalStatus) {
+        setApprovalStatus(result.approvalStatus);
+        setRejectionReason(result.rejectionReason);
+      }
     }
     
     setLoading(false);
@@ -84,6 +95,33 @@ const Login = () => {
         {error && (
           <Alert severity="error" sx={{ mb: 3 }} onClose={clearError}>
             {error}
+          </Alert>
+        )}
+
+        {approvalStatus === 'pending' && (
+          <Alert severity="info" sx={{ mb: 3 }}>
+            <Typography variant="body2" gutterBottom>
+              Your mentor account is pending approval. Please wait for admin approval before logging in.
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              You will receive a notification once your account is approved.
+            </Typography>
+          </Alert>
+        )}
+
+        {approvalStatus === 'rejected' && (
+          <Alert severity="warning" sx={{ mb: 3 }}>
+            <Typography variant="body2" gutterBottom>
+              Your mentor account has been rejected.
+            </Typography>
+            {rejectionReason && (
+              <Typography variant="body2" color="text.secondary">
+                Reason: {rejectionReason}
+              </Typography>
+            )}
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+              Please contact support if you believe this is an error.
+            </Typography>
           </Alert>
         )}
 

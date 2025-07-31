@@ -75,20 +75,29 @@ export const AuthProvider = ({ children }) => {
       socketService.connect(token);
       socketService.joinRoom(user.id);
       
-      return { success: true };
+      return { success: true, user };
     } catch (error) {
       let message = 'Login failed';
+      let approvalStatus = null;
+      let rejectionReason = null;
       
       if (error.response?.status === 429) {
         message = 'Too many login attempts. Please wait a few minutes before trying again.';
       } else if (error.response?.data?.message) {
         message = error.response.data.message;
+        approvalStatus = error.response.data.approvalStatus;
+        rejectionReason = error.response.data.rejectionReason;
       } else if (error.response?.data?.error) {
         message = error.response.data.error;
       }
       
       setError(message);
-      return { success: false, error: message };
+      return { 
+        success: false, 
+        error: message, 
+        approvalStatus,
+        rejectionReason
+      };
     }
   };
 

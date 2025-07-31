@@ -79,6 +79,57 @@ router.get('/categories', async (req, res) => {
   }
 });
 
+// Download a file - MUST BE BEFORE GENERIC ROUTES
+router.get('/download/:fileId', auth, async (req, res) => {
+  try {
+    const { fileId } = req.params;
+    console.log('Download request for fileId:', fileId);
+    
+    const file = await File.findById(fileId);
+
+    if (!file) {
+      console.log('File not found in database');
+      return res.status(404).json({ message: 'File not found' });
+    }
+
+    console.log('File found:', {
+      title: file.title,
+      filePath: file.filePath,
+      isPublic: file.isPublic,
+      uploadedBy: file.uploadedBy,
+      requestingUser: req.user._id
+    });
+
+    // Check access permissions
+    if (!file.isPublic && file.uploadedBy.toString() !== req.user._id.toString()) {
+      console.log('Access denied - file not public and user not owner');
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    const filePath = path.join(__dirname, '..', file.filePath);
+    console.log('Resolved file path:', filePath);
+    
+    if (!fs.existsSync(filePath)) {
+      console.log('File not found on filesystem:', filePath);
+      return res.status(404).json({ message: 'File not found on server' });
+    }
+
+    console.log('File exists, starting download...');
+
+    // Set headers for file download
+    res.setHeader('Content-Disposition', `attachment; filename="${file.originalName}"`);
+    res.setHeader('Content-Type', file.mimeType);
+    res.setHeader('Content-Length', file.fileSize);
+
+    // Stream the file
+    const fileStream = fs.createReadStream(filePath);
+    fileStream.pipe(res);
+  } catch (error) {
+    console.error('Error downloading file:', error);
+    res.status(500).json({ message: 'Error downloading file' });
+  }
+});
+
 // Upload a file (mentor only)
 router.post('/upload', auth, verifyMentor, upload.single('file'), async (req, res) => {
   try {
@@ -181,40 +232,7 @@ router.get('/', auth, async (req, res) => {
   }
 });
 
-// Download a file
-router.get('/download/:fileId', auth, async (req, res) => {
-  try {
-    const { fileId } = req.params;
-    const file = await File.findById(fileId);
 
-    if (!file) {
-      return res.status(404).json({ message: 'File not found' });
-    }
-
-    // Check access permissions
-    if (!file.isPublic && file.uploadedBy.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ message: 'Access denied' });
-    }
-
-    const filePath = path.join(__dirname, '..', file.filePath);
-    
-    if (!fs.existsSync(filePath)) {
-      return res.status(404).json({ message: 'File not found on server' });
-    }
-
-    // Set headers for file download
-    res.setHeader('Content-Disposition', `attachment; filename="${file.originalName}"`);
-    res.setHeader('Content-Type', file.mimeType);
-    res.setHeader('Content-Length', file.fileSize);
-
-    // Stream the file
-    const fileStream = fs.createReadStream(filePath);
-    fileStream.pipe(res);
-  } catch (error) {
-    console.error('Error downloading file:', error);
-    res.status(500).json({ message: 'Error downloading file' });
-  }
-});
 
 // Get file info
 router.get('/:fileId', auth, async (req, res) => {

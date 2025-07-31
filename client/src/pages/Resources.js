@@ -154,7 +154,7 @@ const Resources = () => {
       if (resource.isMentorFile) {
         console.log('Handling mentor file download');
         // For mentor files, use the file download endpoint
-        const response = await axios.get(`/api/files/${resource._id}/download`, {
+        const response = await axios.get(`/api/files/download/${resource._id}`, {
           headers: {
             'Authorization': `Bearer ${token}`
           },

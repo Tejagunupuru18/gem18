@@ -166,10 +166,18 @@ const AdminDashboard = () => {
     }
   };
 
+  const [rejectionReason, setRejectionReason] = useState('');
+
   const handleMentorAction = async (mentorId, action) => {
     try {
-      await axios.post(`/api/admin/mentors/${action}`, { mentorId });
+      const payload = { mentorId };
+      if (action === 'reject' && rejectionReason) {
+        payload.rejectionReason = rejectionReason;
+      }
+      
+      await axios.post(`/api/admin/mentors/${action}`, payload);
       setSuccess(`Mentor ${action} successfully!`);
+      setRejectionReason('');
       fetchDashboardData();
       setDialogOpen(false);
     } catch (err) {
@@ -1051,11 +1059,29 @@ const AdminDashboard = () => {
         <DialogTitle>Confirm Action</DialogTitle>
         <DialogContent>
           <Typography>
-            Are you sure you want to {action} {selectedUser?.name}?
+            Are you sure you want to {action} {selectedUser?.firstName} {selectedUser?.lastName}?
           </Typography>
+          
+          {action === 'reject' && (
+            <TextField
+              fullWidth
+              label="Rejection Reason (Optional)"
+              multiline
+              rows={3}
+              value={rejectionReason}
+              onChange={(e) => setRejectionReason(e.target.value)}
+              sx={{ mt: 2 }}
+              placeholder="Please provide a reason for rejection..."
+            />
+          )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDialogOpen(false)}>Cancel</Button>
+          <Button onClick={() => {
+            setDialogOpen(false);
+            setRejectionReason('');
+          }}>
+            Cancel
+          </Button>
           <Button 
             onClick={() => handleMentorAction(selectedUser?._id, action)}
             variant="contained"

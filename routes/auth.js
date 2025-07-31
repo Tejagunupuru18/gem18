@@ -44,7 +44,8 @@ router.post('/register', [
       lastName,
       role,
       phone,
-      isVerified: role === 'student' // Students are auto-verified
+      isVerified: role === 'student', // Students are auto-verified
+      approvalStatus: role === 'mentor' ? 'pending' : 'approved' // Mentors need approval
     });
 
     await user.save();
@@ -98,9 +99,9 @@ router.post('/register', [
           timezone: 'Asia/Kolkata'
         },
         verification: { 
-          status: 'approved',
+          status: 'pending',
           documents: [],
-          verifiedAt: new Date()
+          verifiedAt: null
         }
       });
       await mentor.save();
@@ -119,7 +120,9 @@ router.post('/register', [
     );
 
     res.status(201).json({
-      message: 'User registered successfully',
+      message: user.role === 'mentor' 
+        ? 'Registration successful! Your mentor account is pending admin approval. You will be notified once approved.'
+        : 'User registered successfully',
       token,
       user: {
         id: user._id,
@@ -127,7 +130,8 @@ router.post('/register', [
         firstName: user.firstName,
         lastName: user.lastName,
         role: user.role,
-        isVerified: user.isVerified
+        isVerified: user.isVerified,
+        approvalStatus: user.approvalStatus
       }
     });
 
@@ -185,6 +189,22 @@ router.post('/login', [
       return res.status(400).json({ message: 'Account is deactivated.' });
     }
 
+    // Check approval status for mentors
+    if (user.role === 'mentor' && user.approvalStatus !== 'approved') {
+      if (user.approvalStatus === 'pending') {
+        return res.status(403).json({ 
+          message: 'Your mentor account is pending approval. Please wait for admin approval before logging in.',
+          approvalStatus: 'pending'
+        });
+      } else if (user.approvalStatus === 'rejected') {
+        return res.status(403).json({ 
+          message: `Your mentor account has been rejected. Reason: ${user.rejectionReason || 'No reason provided'}`,
+          approvalStatus: 'rejected',
+          rejectionReason: user.rejectionReason
+        });
+      }
+    }
+
     // Update last login
     user.lastLogin = new Date();
     await user.save();
@@ -205,7 +225,8 @@ router.post('/login', [
         firstName: user.firstName,
         lastName: user.lastName,
         role: user.role,
-        isVerified: user.isVerified
+        isVerified: user.isVerified,
+        approvalStatus: user.approvalStatus
       }
     });
 
