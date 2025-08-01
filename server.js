@@ -116,15 +116,6 @@ if (isDevelopment) {
   });
 }
 
-// Serve React app in production
-if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(path.join(__dirname, 'client/build')));
-  
-  app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, 'client/build', 'index.html'));
-  });
-}
-
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
@@ -134,10 +125,35 @@ app.use((err, req, res, next) => {
   });
 });
 
-// 404 handler
-app.use((req, res) => {
-  res.status(404).json({ message: 'Route not found' });
-});
+// Serve React app in production (must be after API routes but before 404)
+const buildPath = path.join(__dirname, 'client/build');
+const indexPath = path.join(buildPath, 'index.html');
+
+// Check if build files exist
+if (!require('fs').existsSync(buildPath)) {
+  console.error('❌ React build directory not found:', buildPath);
+  console.log('🔧 Make sure to run: cd client && npm run build');
+} else if (!require('fs').existsSync(indexPath)) {
+  console.error('❌ React build index.html not found:', indexPath);
+  console.log('🔧 Make sure to run: cd client && npm run build');
+} else {
+  console.log('✅ React build files found, serving static files');
+  
+  // Serve static files from React build
+  app.use(express.static(buildPath));
+  
+  // Handle React routing, return all requests to React app
+  app.get('*', (req, res) => {
+    res.sendFile(indexPath);
+  });
+}
+
+// 404 handler (only if React build files don't exist)
+if (!require('fs').existsSync(indexPath)) {
+  app.use((req, res) => {
+    res.status(404).json({ message: 'Route not found' });
+  });
+}
 
 // MongoDB connection
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://teja:gtejaiit18@cluster0.xjo4byx.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0';
