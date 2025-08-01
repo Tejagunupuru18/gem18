@@ -26,7 +26,12 @@ app.set('trust proxy', 1);
 // Security middleware
 app.use(helmet());
 app.use(cors({
-  origin: ['http://localhost:3000', 'http://localhost:3001'],
+  origin: [
+    'http://localhost:3000', 
+    'http://localhost:3001',
+    process.env.CLIENT_URL,
+    /\.onrender\.com$/
+  ],
   credentials: true
 }));
 
@@ -150,7 +155,12 @@ mongoose.connect(MONGODB_URI)
   // Socket.IO setup for real-time features
   const io = require('socket.io')(server, {
     cors: {
-      origin: ["http://localhost:3000", "http://localhost:3001"],
+      origin: [
+        "http://localhost:3000", 
+        "http://localhost:3001",
+        process.env.CLIENT_URL,
+        /\.onrender\.com$/
+      ],
       methods: ["GET", "POST"]
     }
   });
