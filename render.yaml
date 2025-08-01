@@ -4,8 +4,17 @@ services:
     runtime: node
     plan: starter
     buildCommand: |
+      echo "Starting build process..."
       npm install
-      cd client && npm install && npm run build
+      echo "Installing client dependencies..."
+      cd client && npm install
+      echo "Building React app..."
+      npm run build
+      echo "Build completed - checking files..."
+      ls -la build/
+      cd ..
+      echo "Final build directory check:"
+      ls -la client/build/
     startCommand: npm start
     envVars:
       - key: NODE_ENV

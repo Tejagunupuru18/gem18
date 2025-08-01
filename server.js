@@ -133,9 +133,11 @@ const indexPath = path.join(buildPath, 'index.html');
 if (!require('fs').existsSync(buildPath)) {
   console.error('❌ React build directory not found:', buildPath);
   console.log('🔧 Make sure to run: cd client && npm run build');
+  console.log('📁 Current directory contents:', require('fs').readdirSync(__dirname));
 } else if (!require('fs').existsSync(indexPath)) {
   console.error('❌ React build index.html not found:', indexPath);
   console.log('🔧 Make sure to run: cd client && npm run build');
+  console.log('📁 Build directory contents:', require('fs').readdirSync(buildPath));
 } else {
   console.log('✅ React build files found, serving static files');
   
